@@ -1,0 +1,90 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "gligabao",
+  "colors": {
+    "primary": "#0E7C66",
+    "light": "#2EC4A0",
+    "dark": "#0E7C66"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": ["index", "getting-started/quickstart", "getting-started/how-it-works", "getting-started/configuration", "getting-started/database"]
+          },
+          {
+            "group": "Concepts",
+            "pages": ["concepts/datasets", "concepts/artifacts", "concepts/temporal", "concepts/identity", "concepts/sessions"]
+          },
+          {
+            "group": "Guides",
+            "pages": ["guides/chunking", "guides/images", "guides/web-search", "guides/vectors"]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "groups": [
+          {
+            "group": "Memory",
+            "pages": ["api-reference/remember", "api-reference/recall", "api-reference/graph"]
+          },
+          {
+            "group": "Data",
+            "pages": ["api-reference/ontologies", "api-reference/timeseries"]
+          },
+          {
+            "group": "Service",
+            "pages": ["api-reference/overview"]
+          }
+        ]
+      },
+      {
+        "tab": "Embedding & ops",
+        "groups": [
+          {
+            "group": "Embedding in Go",
+            "pages": ["embedding/go-library", "embedding/hooks", "embedding/remember-manager"]
+          },
+          {
+            "group": "Operations",
+            "pages": ["operations/model-runs", "operations/evals", "operations/experiments", "operations/versioning"]
+          },
+          {
+            "group": "Appendix",
+            "pages": ["appendix/not-included", "appendix/timeseries-design"]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/deepblue-phoenix/gligabao"
+        }
+      ]
+    }
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/deepblue-phoenix/gligabao"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/deepblue-phoenix/gligabao"
+    }
+  }
+}

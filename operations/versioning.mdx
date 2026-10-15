@@ -1,0 +1,24 @@
+---
+title: "Building and versioning"
+description: "Static builds, the VERSION file, the changelog and the version endpoint."
+---
+
+## Building
+
+gligabao is pure Go and builds with `CGO_ENABLED=0`: SQLite uses the `modernc.org/sqlite` driver and the default vector store is [chromem-go](https://github.com/philippgille/chromem-go), so no C compiler is needed.
+
+- `./run_build.sh` builds `bin/gligabao`.
+- `./run_tests.sh` runs the tests.
+- `docker build .` (or `./run_build_container.sh`) builds a static binary in a container.
+
+## Versioning
+
+The version is in `VERSION` (semantic version) and the history in `CHANGELOG.md` ([Keep a Changelog](https://keepachangelog.com/) format). The version is embedded into the binary at build time (`go:embed`), so a deployed binary always knows it:
+
+```sh
+gligabao --version
+gligabao version
+curl localhost:7878/version     # JSON, includes the git commit stamped by go build
+```
+
+Every change bumps `VERSION` and adds a changelog entry; `go test` fails if the two disagree. The rules for people and coding agents are in `AGENTS.md` of the repository.

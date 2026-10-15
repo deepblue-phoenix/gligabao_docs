@@ -1,0 +1,57 @@
+---
+title: "Quickstart"
+description: "Build gligabao, start the server, then remember and recall your first facts."
+---
+
+## 1. Build and run
+
+gligabao is pure Go and builds with `CGO_ENABLED=0`, so no C compiler is needed.
+
+```sh
+./run_build.sh                      # builds bin/gligabao
+export ANTHROPIC_API_KEY=...        # required for remember/recall
+./bin/gligabao serve                # listens on :7878 by default
+```
+
+<Tip>
+  Run `./run_tests.sh` to run the test suite. Plain `go build ./cmd/gligabao` and `go test ./...` also work.
+</Tip>
+
+## 2. Remember something
+
+```sh
+curl -X POST localhost:7878/v1/gb/remember \
+  -H 'content-type: application/json' \
+  -d '{"user_id": "u1", "text": "Alice works at Acme and lives in Paris."}'
+```
+
+The response contains the `artifact_id`, the extracted entities, the `edges` with their temporal fields and any `invalidated_edges`. See [Remember](/api-reference/remember).
+
+## 3. Recall
+
+```sh
+curl -X POST localhost:7878/v1/gb/recall \
+  -H 'content-type: application/json' \
+  -d '{"user_id": "u1", "query": "Where does Alice work?"}'
+```
+
+You get an `answer` plus the `evidence` (entities and edges) it relied on. See [Recall](/api-reference/recall).
+
+## 4. Inspect the graph
+
+```sh
+curl 'localhost:7878/v1/gb/datasets/main/graph?user_id=u1'
+```
+
+See [Graph export](/api-reference/graph).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/getting-started/configuration">
+    API keys, database, vector store and prices.
+  </Card>
+  <Card title="Temporal facts" icon="clock-rotate-left" href="/concepts/temporal">
+    How contradicting facts are reconciled.
+  </Card>
+</CardGroup>
