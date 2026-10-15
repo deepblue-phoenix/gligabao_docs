@@ -37,7 +37,7 @@ input = 1.0
 output = 5.0
 ```
 
-Every model invocation (LLM call, embedding request, web search, Jev classification) is a row of the `gb_model_runs` table. See [Model runs](/operations/model-runs).
+Every model invocation (LLM call, embedding request, web search, Jev classification) is a row of the `gb_model_runs` table, with the model, the thinking level, the tokens and the cost. See [Model runs](/operations/model-runs).
 
 ## Jev
 
@@ -45,8 +45,8 @@ When a Jev key is set, `remember` first classifies the text as simple/medium/com
 
 ## Eval mode
 
-With `serve --eval` (or `eval = true`) the server also registers `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/recall`. They take the same bodies as the regular endpoints, record the call as an [ATIF](https://github.com/laude-institute/harbor) trajectory, store it as pretty-printed JSON in an `atif/` directory next to the SQLite file, and return the full `trajectory` in the response. See [Evals](/operations/evals).
+With `serve --eval` (or `eval = true`) the server also registers `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/recall`. They take the same bodies as the regular endpoints, record the call as an [ATIF](https://github.com/laude-institute/harbor) trajectory, store it as pretty-printed JSON in an `atif/` directory next to the SQLite file, and return the full `trajectory` (and its `trajectory_id`) in the response. They are not registered otherwise, and the regular endpoints never generate trajectories. `go run ./evals` runs through these endpoints (`-atif <dir>` also keeps the trajectories as files). See [Evals](/operations/evals).
 
 ## Admin UI
 
-`admin_ui/` holds a small admin panel (TypeScript, SCSS, HTML). `./run_build.sh` builds it (needs node/npm) and embeds it into the binary; pass `--no-admin-ui` (or `BUILD_ADMIN_UI=false`) to skip it. With `admin_ui = true` (or `serve --admin-ui`) the server serves it at `/v1/gb/admin/`.
+`admin_ui/` holds a small admin panel (TypeScript, SCSS, HTML). `./run_build.sh` builds it (needs node/npm) and embeds `admin_ui/dist` into the binary with `go:embed`; pass `--no-admin-ui` (or `BUILD_ADMIN_UI=false`) to skip it. With `admin_ui = true` (or `serve --admin-ui`; default `false`) the server serves it at `/v1/gb/admin/`. If the assets were not embedded, the server logs a warning and does not register the handlers.

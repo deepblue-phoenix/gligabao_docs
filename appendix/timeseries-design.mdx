@@ -5,7 +5,7 @@ description: "Design proposal for timeseries support in remember."
 
 > **Status: v1, v2 and the `series_observation` part of v3 are implemented; embedding series and `recall` integration (the rest of v3) are not.** v2 (providers and the fetch stage) differs from the sketch below: see [Changes made while building v2](#changes-made-while-building-v2); the observations differ too: see [Changes made while building v3](#changes-made-while-building-v3).
 >
-> **v1:** What exists is described in [Timeseries](/api-reference/timeseries): supplied series, anchors (artifact, entity, edge) resolved after `Store`, stats, the `POST /v1/gb/timeseries` endpoint and two read endpoints. This file keeps the reasoning behind it and the plan for what is left: the provider fetch stage (v2), and derived `series_observation` artifacts (v3, done), then embedding and `recall` (v3, still to do). Where the text below differs from `timeseries.md`, `timeseries.md` is right (see [Changes made while building v1](#changes-made-while-building-v1)).
+> **v1:** What exists is described in [Timeseries](/api-reference/timeseries): supplied series, anchors (artifact, entity, edge) resolved after `Store`, stats, the `POST /v1/gb/timeseries` endpoint and two read endpoints. This file keeps the reasoning behind it and the plan for what is left: the provider fetch stage (v2), and derived `series_observation` artifacts (v3, done), then embedding and `recall` (v3, still to do). Where the text below differs from [Timeseries](/api-reference/timeseries), that page is right (see [Changes made while building v1](#changes-made-while-building-v1)).
 
 The goal is to let `POST /v1/gb/remember` associate **timeseries data** (not just text or images) with the events, entities and facts it remembers, so a memory such as "Apple fell sharply after the earnings miss" can be tied to Apple's price series around that date.
 
@@ -195,7 +195,7 @@ Files to add, following the existing layout (v3 added `memory_remember/remember_
 - `internal/memory/memory_timeseries/` (parse, anchor, stats, fetch)
 - `internal/db/graph/{sqlite,postgres}/db_timeseries.go`
 - `internal/api/timeseries/`
-- `docs/timeseries.md`
+- `docs/timeseries.md` (now [Timeseries](/api-reference/timeseries))
 
 ## Risks and open questions
 
