@@ -4,6 +4,17 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.10.0] - 2026-10-26
+
+### Added
+- Training datasets page: "Managing datasets (Go server)" (`POST` and `GET /v1/gb/training/datasets`, the dataset directory and `serve --training-dataset-dir`, the `gb_training_datasets` record and its `stored` / `synced` status), "How a dataset reaches the sidecar" (inside `POST /training/job_start` as `dataset_content`) and the Python `TrainingDataset` model as the sidecar's internal way to load and pass a dataset around. Documents gligabao 0.30.0 and 0.31.0.
+
+### Changed
+- The sidecar has no dataset endpoints: `POST /datasets/upload` and `GET /datasets/list` are gone from the Training overview, Training datasets, Sidecar training API and Python sidecar pages. Datasets are managed by the Go server alone; the sidecar and the Modal app only store a dataset internally when a job needs it. The Go client has no dataset methods; `StartTrainingJobRequest` has `DatasetContent`.
+- Training pages now use the training API paths under `/v1/gb/training/` (jobs, datasets, events), which are served whether or not the admin UI is on, instead of `/v1/gb/admin/api/training/...`, and the code now lives in `internal/api/training/`. A job on a dataset the server has no record of is a `400`.
+- `GET /v1/gb/training/datasets` lists the datasets from the database instead of asking the sidecar.
+- Go library page: `ServeOptions.TrainingDatasetDir`. The training view of the admin UI uploads datasets.
+
 ## [0.9.0] - 2026-10-26
 
 ### Added

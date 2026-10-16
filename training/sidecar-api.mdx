@@ -1,6 +1,6 @@
 ---
 title: "Sidecar training API"
-description: "The REST endpoints of the sidecar web API: training jobs and progress, datasets, inference and eval examples."
+description: "The REST endpoints of the sidecar web API: training jobs and progress, inference and eval examples. There are no dataset endpoints."
 ---
 
 `side_car/routes.py`, `side_car/backends/`, `side_car/ai_train/api/api.py`, `side_car/ai_train/api/models.py`
@@ -14,18 +14,18 @@ What the sidecar adds: `GET /health` (answered by the sidecar itself, not forwar
 | `POST /training/job_start` | yes | Start a training job. |
 | `GET /training/job_progress` | no | The progress entries of a job, as one JSON answer. |
 | `GET /training/job_events` | yes | The events of a job as Server-Sent Events. |
-| `POST /datasets/upload` | yes | Upload a training dataset. |
-| `GET /datasets/list` | yes | List the training datasets. |
 | `POST /infer/query` | no | Generate with the fine-tuned adapter. |
 | `POST /evals/add_to_dataset` | no | Add an eval example. |
 | `GET /evals/get_dataset_count` | no | Count the eval examples. |
 | `GET /healthz` | no | Liveness of the Modal web API: `{"status": "ok", "timestamp": ...}`. Not a sidecar route (the sidecar's own is `GET /health`), so it is not reachable through the sidecar. |
 
+There are **no dataset endpoints** (`/datasets/upload` and `/datasets/list` were removed in gligabao 0.31.0): training datasets belong to the Go server, which hands one to the sidecar inside `POST /training/job_start`; see [Training datasets](/training/datasets#how-a-dataset-reaches-the-sidecar).
+
 The routes were put under these prefixes in gligabao 0.26.2. They used to be `/start_training_job`, `/get_training_progress`, `/generate_response`, `/add_to_eval_dataset`, `/get_eval_dataset_count`, `/upload_dataset` and `/list_datasets`.
 
 ## `POST /training/job_start`
 
-Body `{num_train_steps?, model_size?, dataset?}` (defaults `100`, `4b` and the default dataset). The sidecar generates the job's ID, spawns the job and answers with a [`TrainingJob`](/training/jobs#the-trainingjob-struct). `400` with `{"error": ...}` for a `model_size` that is not `4b` or `12b`, for a `num_train_steps` that is not a positive integer, and for a `dataset` that is not a plain `*.jsonl` file name or is not on the data volume. It returns as soon as the job is spawned.
+Body `{num_train_steps?, model_size?, dataset?, dataset_content?}` (defaults `100`, `4b` and the default dataset). `dataset_content` is the dataset's jsonl file, base64; when it is given the sidecar stores it on the data volume as `dataset` before it spawns the job (the Go server sends it for every job that uses one of its datasets). The sidecar generates the job's ID, spawns the job and answers with a [`TrainingJob`](/training/jobs#the-trainingjob-struct). `400` with `{"error": ...}` for a `model_size` that is not `4b` or `12b`, for a `num_train_steps` that is not a positive integer, for a `dataset` that is not a plain `*.jsonl` file name, for a `dataset_content` that is not valid base64, is empty or has no `dataset`, and for a `dataset` without `dataset_content` that is not on the data volume. It returns as soon as the job is spawned.
 
 ```sh
 curl -X POST $URL/training/job_start -H "Content-Type: application/json" \
@@ -73,10 +73,6 @@ data: {"type":"progress","step":20,"loss":1.234,"learning_rate":0.0002,"epoch":0
 ## `GET /training/job_progress`
 
 `[?job_id=<id>]`: the events of that job's progress file, or, without `job_id`, of the most recently modified one, as `{"progress": [...]}` (an empty list when there is none). Unlike the stream it answers once with everything so far. There is no Go client method for it; the Go server uses the stream.
-
-## Datasets
-
-`POST /datasets/upload` and `GET /datasets/list` are described in [Training datasets](/training/datasets#uploading-and-listing).
 
 ## `POST /infer/query`
 

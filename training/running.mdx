@@ -24,7 +24,7 @@ side_car/ai_train/
     model_config.py           # 4b / 12b settings (pure data)
     paths.py                  # container mount points + file locations
     prompt_format.py          # Gemma turn-marker format shared by training and inference
-    dataset.py                # sync / validate the dataset on the data volume
+    dataset.py                # store / sync / validate datasets on the data volume (internal)
     training_common.py        # dataset loading, SFTConfig, adapter saving
     progress.py               # Trainer callback writing live progress events
     progress_events.py        # the progress file format: write/read events (no heavy imports)
@@ -33,7 +33,7 @@ side_car/ai_train/
     inference.py              # generate with the trained adapter
     bootstrap.py              # ping + train dispatch by backend
   api/
-    api.py                    # FastAPI app (training jobs, progress, generate, eval, datasets)
+    api.py                    # FastAPI app (training jobs, progress, generate, eval; no dataset endpoints)
   providers/
     base.py                   # Provider (ABC), FunctionSpec, ImageSpec
     modal_provider.py         # Modal implementation; the only file that imports modal

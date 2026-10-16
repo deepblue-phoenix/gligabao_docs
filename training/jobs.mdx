@@ -1,9 +1,9 @@
 ---
 title: "Training jobs"
-description: "The TrainingJob struct, the admin endpoints that start and list jobs and stream their progress, the gb_training_job_runs and gb_training_job_events tables and the Go client calls."
+description: "The TrainingJob struct, the training endpoints that start and list jobs and stream their progress, the gb_training_job_runs and gb_training_job_events tables and the Go client calls."
 ---
 
-`internal/sidecar/training_jobs.go`, `internal/sidecar/training_events.go`, `internal/api/admin/trainingjobs.go`, `internal/api/admin/trainingmonitor.go`, `internal/db/relational/model/training_job_run.go`, `side_car/ai_train/api/models.py`, `admin_ui/src/training.ts`
+`internal/sidecar/training_jobs.go`, `internal/sidecar/training_events.go`, `internal/api/training/jobs.go`, `internal/api/training/monitor.go`, `internal/db/relational/model/training_job_run.go`, `side_car/ai_train/api/models.py`, `admin_ui/src/training.ts`
 
 How the Go server starts a training job through the sidecar, follows its progress and keeps track of it. The Go server talks only to the sidecar; the sidecar proxies each call to the Modal web API, so every sidecar answer below is Modal's, passed on unchanged. The [overview](/training/overview#how-a-job-starts) shows the flow.
 
@@ -40,9 +40,9 @@ Example answer of `POST /training/job_start`:
 }
 ```
 
-## Starting a job: the admin endpoint
+## Starting a job
 
-`POST /v1/gb/admin/api/training/jobs[?db=<name>]`, served with the [admin UI](/getting-started/configuration#admin-ui) (it is not registered otherwise, nor when the web assets are not embedded in the binary). `db` picks the database the job is recorded in (the first one, `standard`, without it), like the other admin endpoints.
+`POST /v1/gb/training/jobs[?db=<name>]`, part of the API (served whether or not the [admin UI](/getting-started/configuration#admin-ui) is on; the paths were `/v1/gb/admin/api/training/...` before gligabao 0.30.0). `db` picks the database the job is recorded in (the first one, `standard`, without it).
 
 The body is optional JSON; every field is optional too:
 
@@ -50,12 +50,12 @@ The body is optional JSON; every field is optional too:
 | --- | --- | --- |
 | `num_train_steps` | `100` | Training steps. Must be positive. |
 | `model_size` | `4b` | `4b` or `12b` (case-insensitive). See [Model sizes](/training/models). |
-| `dataset` | the sidecar's default dataset | File name of a training dataset on the sidecar (a `*.jsonl`, no path), as listed by `GET /v1/gb/admin/api/training/datasets`. See [Training datasets](/training/datasets#choosing-the-dataset-of-a-job). |
+| `dataset` | the sidecar's default dataset | File name of an uploaded training dataset (a `*.jsonl`, no path), as listed by `GET /v1/gb/training/datasets`. The server sends its file to the sidecar with the job. See [Training datasets](/training/datasets#how-a-dataset-reaches-the-sidecar). |
 
 An empty body starts a 4b job of 100 steps on the default dataset. A field left out is not sent, so the defaults are the sidecar's (`sidecar.DefaultNumTrainSteps`, `sidecar.DefaultModelSize` in Go).
 
 ```sh
-curl -X POST http://localhost:7878/v1/gb/admin/api/training/jobs \
+curl -X POST http://localhost:7878/v1/gb/training/jobs \
   -H "Content-Type: application/json" \
   -d '{"num_train_steps": 500, "model_size": "12b", "dataset": "my.jsonl"}'
 ```
@@ -83,11 +83,11 @@ The answer is `201` with the stored row:
 | Status | When |
 | --- | --- |
 | `201` | The job was started and recorded. |
-| `400` | The body is not valid JSON, `num_train_steps` is negative, `model_size` is not `4b` or `12b`, or `dataset` is not a plain `*.jsonl` file name (the sidecar is not called). Also when the sidecar itself rejects the request as invalid, for example a dataset that is not on its volume: the answer then carries the sidecar's message. |
-| `404` | `db` is not one of the databases the admin UI shows. |
+| `400` | The body is not valid JSON, `num_train_steps` is negative, `model_size` is not `4b` or `12b`, or `dataset` is not a plain `*.jsonl` file name (the sidecar is not called). Also for a `dataset` the server has no record of (upload it first), and when the sidecar itself rejects the request as invalid: the answer then carries the sidecar's message. |
+| `404` | `db` is not one of the configured databases. |
 | `502` | The sidecar could not be reached, or it answered with another error: its own `502` when it cannot reach Modal (the app is not deployed, or its URL cannot be found), or an error status from the Modal web API. Nothing is recorded. |
 | `503` | The server has no sidecar client: the sidecar failed its health check when the server started ("sidecar is not active"). Start the sidecar and restart the server. |
-| `500` | The job was started, but the row could not be written or read back. The message names the `job_id`, so the job can still be found on the provider. |
+| `500` | The dataset's file is missing from the dataset directory or does not match its record (upload it again); or the job was started, but the row could not be written or read back. The message names the `job_id`, so the job can still be found on the provider. |
 
 Every job the sidecar reports as started is a new row, even if an identical one was started a minute before. A start that fails records nothing. The row is written even if the HTTP client disconnects while the job is being started, because by then the job is already running. Once it is written, the [training monitor](#training-progress) starts following the job.
 
@@ -95,22 +95,22 @@ Every job the sidecar reports as started is a new row, even if an identical one 
 
 | Endpoint | Answer |
 | --- | --- |
-| `GET /v1/gb/admin/api/training/jobs[?db=<name>][&limit=<n>]` | `{"jobs": [...]}`: the rows of `gb_training_job_runs`, newest first. `limit` defaults to 50, at most 500 (`400` if it is not a positive integer). |
-| `GET /v1/gb/admin/api/training/datasets` | `{"datasets": [...]}`: the sidecar's training datasets (`filename`, `size_bytes`, `uploaded_at`, `modified_at`). `502` if the sidecar fails, `503` if the sidecar is not active. |
+| `GET /v1/gb/training/jobs[?db=<name>][&limit=<n>]` | `{"jobs": [...]}`: the rows of `gb_training_job_runs`, newest first. `limit` defaults to 50, at most 500 (`400` if it is not a positive integer). |
+| `GET /v1/gb/training/datasets[?db=<name>]` | `{"datasets": [...]}`: the training datasets of the database (`filename`, `size_bytes`, `num_records`, `sha256`, `status`, `updated_at`, `synced_at`), latest first. Read from the database only: no sidecar needed. Uploading is `POST /v1/gb/training/datasets`; see [Training datasets](/training/datasets#managing-datasets-go-server). |
 
 ## Training progress
 
-A job reports as it runs. The training container writes [events](/training/sidecar-api#progress-events) (status changes, and the step and loss of every trainer log) and the sidecar streams them at `GET /training/job_events`. The **training monitor** of the Go server (`internal/api/admin/trainingmonitor.go`) follows that stream for every job started through the admin endpoint:
+A job reports as it runs. The training container writes [events](/training/sidecar-api#progress-events) (status changes, and the step and loss of every trainer log) and the sidecar streams them at `GET /training/job_events`. The **training monitor** of the Go server (`internal/api/training/monitor.go`) follows that stream for every job started through the start endpoint:
 
 - it stores each event in `gb_training_job_events` and updates the job's row: `status` follows the status events, `last_step` and `last_loss` the progress events, and the end sets `final_loss` (`completed`), `error` (`failed`) and `finished_at`;
-- it forwards each event to the admin UI's own SSE streams;
+- it forwards each event to the SSE feed;
 - when the sidecar ends the stream without the job being over (the sidecar limits one response to a few minutes) or the connection breaks, it reconnects from the next event it has not stored, waiting longer between attempts (1 second, doubling up to 30) while nothing arrives;
 - when the server starts, it resumes following every job that is not `completed` or `failed`, from the last stored event;
 - if the sidecar reports no end within 3 hours of the job's start (the provider cancels a job after `SIDECAR_TRAIN_TIMEOUT_S`, 2 hours by default, and a container that dies writes nothing), it marks the job `failed` with an explanation and a final event.
 
-### The admin SSE feed
+### The SSE feed
 
-`GET /v1/gb/admin/api/training/events[?db=<name>][&run_id=<id>]` is a Server-Sent Events stream. Each message has `event: status` or `event: progress` and a `data:` JSON object with the sidecar's event fields plus `db`, `run_id`, `job_id` and `seq` (the event's index in the job):
+`GET /v1/gb/training/events[?db=<name>][&run_id=<id>]` is a Server-Sent Events stream. Each message has `event: status` or `event: progress` and a `data:` JSON object with the sidecar's event fields plus `db`, `run_id`, `job_id` and `seq` (the event's index in the job):
 
 ```
 id: 4
@@ -125,7 +125,7 @@ A client that cannot keep up (more than 256 events behind) is disconnected; it r
 
 ### The training view
 
-The **training** view of the [admin UI](/getting-started/configuration#admin-ui) puts this together. The `Run` button posts to the start endpoint with the chosen model size, dataset (picked from the sidecar's datasets) and steps. The table lists the jobs (status, model, dataset, `last_step / num_train_steps`, loss, start time) and is updated from the feed without polling. Selecting a job shows its event feed and a graph of its loss against the step, built from the stored events and then the live ones. The view opens its two SSE connections only while it is shown.
+The **training** view of the [admin UI](/getting-started/configuration#admin-ui) puts this together. The `Run` button posts to the start endpoint with the chosen model size, dataset (picked from the uploaded datasets) and steps. The table lists the jobs (status, model, dataset, `last_step / num_train_steps`, loss, start time) and is updated from the feed without polling. Selecting a job shows its event feed and a graph of its loss against the step, built from the stored events and then the live ones. The view also uploads datasets (a file input and a table of the uploaded ones with their status). It opens its two SSE connections only while it is shown.
 
 ## The `gb_training_job_runs` table
 
@@ -178,6 +178,7 @@ job, err := c.StartTrainingJob(ctx, sidecar.StartTrainingJobRequest{
     NumTrainSteps: 500,                  // 0 = the sidecar's default (100)
     ModelSize:     sidecar.ModelSize12B, // "" = the sidecar's default (4b)
     Dataset:       "my.jsonl",           // "" = the sidecar's default dataset
+    // DatasetContent: the dataset's jsonl file, base64; the sidecar stores it as Dataset before it starts the job
 })
 // job.JobID, job.ProviderJobID, job.Status, job.ModelSize, job.Dataset, job.NumTrainSteps, job.StartedAt
 
@@ -188,6 +189,6 @@ err = c.StreamTrainingJobEvents(ctx, job.JobID, 0, func(ev sidecar.TrainingEvent
 })
 ```
 
-`StartTrainingJob` returns an error for a negative `NumTrainSteps`, for any status other than 200 from the sidecar (a `*sidecar.StatusError`), for a body that is not the expected JSON, and for an answer without a `job_id`. `StreamTrainingJobEvents` returns nil when the sidecar ends the stream (after the job's last event, or after the sidecar's time limit; reconnect with `from` = the last `Seq` + 1), `fn`'s error if `fn` fails, the context's error when it is done, and an error for a failed connection, a bad status or an event that is not JSON. The optional fields of `sidecar.TrainingEvent` are pointers, nil when the event does not have them. The dataset calls are in [Training datasets](/training/datasets#go-client).
+`StartTrainingJob` returns an error for a negative `NumTrainSteps`, for any status other than 200 from the sidecar (a `*sidecar.StatusError`), for a body that is not the expected JSON, and for an answer without a `job_id`. `StreamTrainingJobEvents` returns nil when the sidecar ends the stream (after the job's last event, or after the sidecar's time limit; reconnect with `from` = the last `Seq` + 1), `fn`'s error if `fn` fails, the context's error when it is done, and an error for a failed connection, a bad status or an event that is not JSON. The optional fields of `sidecar.TrainingEvent` are pointers, nil when the event does not have them. There are no dataset calls: the sidecar has no dataset endpoints, and a dataset travels in `DatasetContent` (see [Training datasets](/training/datasets#how-a-dataset-reaches-the-sidecar)).
 
-The tests (`internal/sidecar/*_test.go`, `internal/api/admin/trainingjobs_test.go`, `trainingmonitor_test.go`) run against an `httptest` server and a fake sidecar, so they need neither Python nor a cloud account.
+The tests (`internal/sidecar/*_test.go`, `internal/api/training/*_test.go`) run against an `httptest` server and a fake sidecar, so they need neither Python nor a cloud account.
