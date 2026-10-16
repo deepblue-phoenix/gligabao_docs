@@ -1,11 +1,11 @@
 ---
 title: "Training jobs"
-description: "The TrainingJob struct, the admin endpoint that starts a job, the gb_training_job_runs table and the Go client call."
+description: "The TrainingJob struct, the admin endpoints that start and list jobs and stream their progress, the gb_training_job_runs and gb_training_job_events tables and the Go client calls."
 ---
 
-`internal/sidecar/training_jobs.go`, `internal/api/admin/trainingjobs.go`, `internal/db/relational/model/training_job_run.go`, `side_car/ai_train/api/models.py`
+`internal/sidecar/training_jobs.go`, `internal/sidecar/training_events.go`, `internal/api/admin/trainingjobs.go`, `internal/api/admin/trainingmonitor.go`, `internal/db/relational/model/training_job_run.go`, `side_car/ai_train/api/models.py`, `admin_ui/src/training.ts`
 
-How the Go server starts a training job on the sidecar and keeps track of it. The [overview](/training/overview#how-a-job-starts) shows the flow.
+How the Go server starts a training job on the sidecar, follows its progress and keeps track of it. The [overview](/training/overview#how-a-job-starts) shows the flow.
 
 ## The `TrainingJob` struct
 
@@ -13,10 +13,12 @@ The sidecar reports a started job as a `TrainingJob`; the Go client decodes the 
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `job_id` | string | The compute provider's ID of the spawned job. Never empty: the Go client returns an error if the sidecar sends none. |
+| `job_id` | string | The sidecar's ID of the job; it names the job's progress file. Never empty: the Go client returns an error if the sidecar sends none. |
+| `provider_job_id` | string | The compute provider's ID of the spawned call (for the provider's dashboard). Optional. |
 | `status` | string | What the sidecar reports when the job starts: `started`. |
 | `model_size` | string | `4b` or `12b`. |
 | `num_train_steps` | integer | How many steps the job was asked to train. |
+| `dataset` | string | The file on the data volume the job trains on; empty for the default dataset. |
 | `started_at` | RFC 3339 timestamp | When the sidecar started the job. Always timezone-aware UTC, so the Go side can parse it. |
 
 The two definitions:
@@ -28,10 +30,12 @@ Example answer of `POST /training/job_start`:
 
 ```json
 {
-  "job_id": "fc-01JABCDEF",
+  "job_id": "3f9a1c52d0e84b17",
+  "provider_job_id": "fc-01JABCDEF",
   "status": "started",
   "model_size": "12b",
   "num_train_steps": 500,
+  "dataset": "my.jsonl",
   "started_at": "2026-10-26T09:30:12.481530Z"
 }
 ```
@@ -46,13 +50,14 @@ The body is optional JSON; every field is optional too:
 | --- | --- | --- |
 | `num_train_steps` | `100` | Training steps. Must be positive. |
 | `model_size` | `4b` | `4b` or `12b` (case-insensitive). See [Model sizes](/training/models). |
+| `dataset` | the sidecar's default dataset | File name of a training dataset on the sidecar (a `*.jsonl`, no path), as listed by `GET /v1/gb/admin/api/training/datasets`. See [Training datasets](/training/datasets#choosing-the-dataset-of-a-job). |
 
-An empty body starts a 4b job of 100 steps. A field left out is not sent, so the defaults are the sidecar's (`sidecar.DefaultNumTrainSteps`, `sidecar.DefaultModelSize` in Go).
+An empty body starts a 4b job of 100 steps on the default dataset. A field left out is not sent, so the defaults are the sidecar's (`sidecar.DefaultNumTrainSteps`, `sidecar.DefaultModelSize` in Go).
 
 ```sh
 curl -X POST http://localhost:7878/v1/gb/admin/api/training/jobs \
   -H "Content-Type: application/json" \
-  -d '{"num_train_steps": 500, "model_size": "12b"}'
+  -d '{"num_train_steps": 500, "model_size": "12b", "dataset": "my.jsonl"}'
 ```
 
 The answer is `201` with the stored row:
@@ -60,25 +65,67 @@ The answer is `201` with the stored row:
 ```json
 {
   "id": 3,
-  "job_id": "fc-01JABCDEF",
+  "job_id": "3f9a1c52d0e84b17",
+  "provider_job_id": "fc-01JABCDEF",
   "status": "started",
   "model_size": "12b",
+  "dataset": "my.jsonl",
   "num_train_steps": 500,
+  "last_step": 0,
+  "last_loss": null,
+  "final_loss": null,
   "started_at": "2026-10-26T09:30:12Z",
-  "created_at": "2026-10-26T09:30:13Z"
+  "created_at": "2026-10-26T09:30:13Z",
+  "finished_at": null
 }
 ```
 
 | Status | When |
 | --- | --- |
 | `201` | The job was started and recorded. |
-| `400` | The body is not valid JSON, `num_train_steps` is negative, or `model_size` is not `4b` or `12b`. The sidecar is not called. |
+| `400` | The body is not valid JSON, `num_train_steps` is negative, `model_size` is not `4b` or `12b`, or `dataset` is not a plain `*.jsonl` file name (the sidecar is not called). Also when the sidecar itself rejects the request as invalid, for example a dataset that is not on its volume: the answer then carries the sidecar's message. |
 | `404` | `db` is not one of the databases the admin UI shows. |
-| `502` | The sidecar could not be reached, or it answered with an error (for example it rejected the request). Nothing is recorded. |
+| `502` | The sidecar could not be reached, or it answered with another error. Nothing is recorded. |
 | `503` | The server has no sidecar client. |
 | `500` | The job was started, but the row could not be written or read back. The message names the `job_id`, so the job can still be found on the provider. |
 
-Every job the sidecar reports as started is a new row, even if an identical one was started a minute before. A start that fails records nothing. The row is written even if the HTTP client disconnects while the job is being started, because by then the job is already running.
+Every job the sidecar reports as started is a new row, even if an identical one was started a minute before. A start that fails records nothing. The row is written even if the HTTP client disconnects while the job is being started, because by then the job is already running. Once it is written, the [training monitor](#training-progress) starts following the job.
+
+## Listing jobs and datasets
+
+| Endpoint | Answer |
+| --- | --- |
+| `GET /v1/gb/admin/api/training/jobs[?db=<name>][&limit=<n>]` | `{"jobs": [...]}`: the rows of `gb_training_job_runs`, newest first. `limit` defaults to 50, at most 500 (`400` if it is not a positive integer). |
+| `GET /v1/gb/admin/api/training/datasets` | `{"datasets": [...]}`: the sidecar's training datasets (`filename`, `size_bytes`, `uploaded_at`, `modified_at`). `502` if the sidecar fails, `503` without a sidecar. |
+
+## Training progress
+
+A job reports as it runs. The training container writes [events](/training/sidecar-api#progress-events) (status changes, and the step and loss of every trainer log) and the sidecar streams them at `GET /training/job_events`. The **training monitor** of the Go server (`internal/api/admin/trainingmonitor.go`) follows that stream for every job started through the admin endpoint:
+
+- it stores each event in `gb_training_job_events` and updates the job's row: `status` follows the status events, `last_step` and `last_loss` the progress events, and the end sets `final_loss` (`completed`), `error` (`failed`) and `finished_at`;
+- it forwards each event to the admin UI's own SSE streams;
+- when the sidecar ends the stream without the job being over (the sidecar limits one response to a few minutes) or the connection breaks, it reconnects from the next event it has not stored, waiting longer between attempts (1 second, doubling up to 30) while nothing arrives;
+- when the server starts, it resumes following every job that is not `completed` or `failed`, from the last stored event;
+- if the sidecar reports no end within 3 hours of the job's start (the provider cancels a job after `SIDECAR_TRAIN_TIMEOUT_S`, 2 hours by default, and a container that dies writes nothing), it marks the job `failed` with an explanation and a final event.
+
+### The admin SSE feed
+
+`GET /v1/gb/admin/api/training/events[?db=<name>][&run_id=<id>]` is a Server-Sent Events stream. Each message has `event: status` or `event: progress` and a `data:` JSON object with the sidecar's event fields plus `db`, `run_id`, `job_id` and `seq` (the event's index in the job):
+
+```
+id: 4
+event: progress
+data: {"db":"standard","run_id":3,"job_id":"3f9a1c52d0e84b17","seq":4,"type":"progress","step":20,"loss":1.234,"learning_rate":0.0002,"epoch":0.3,"elapsed_seconds":42.1,"timestamp":1792169586.9}
+```
+
+- **With `run_id`**: the stream of that job. It first replays the events already stored (all of them, or those after the `Last-Event-ID` that a reconnecting `EventSource` sends, or from `from=<n>`), then sends the live ones. Each message has `id: <seq>`. The stream stays open after the job's last event; the client closes it. `404` for an unknown run.
+- **Without `run_id`**: only the live events of every job of the database, no history, no ids. The admin UI uses it to keep the job list current.
+
+A client that cannot keep up (more than 256 events behind) is disconnected; it reconnects and is caught up from the database. A `: keepalive` comment is sent every 15 seconds.
+
+### The training view
+
+The **training** view of the [admin UI](/getting-started/configuration#admin-ui) puts this together. The `Run` button posts to the start endpoint with the chosen model size, dataset (picked from the sidecar's datasets) and steps. The table lists the jobs (status, model, dataset, `last_step / num_train_steps`, loss, start time) and is updated from the feed without polling. Selecting a job shows its event feed and a graph of its loss against the step, built from the stored events and then the live ones. The view opens its two SSE connections only while it is shown.
 
 ## The `gb_training_job_runs` table
 
@@ -87,18 +134,38 @@ One row per training job started. Created with the rest of the schema, on both S
 | Column | Meaning |
 | --- | --- |
 | `id` | The record. |
-| `job_id` | The provider's job ID, as the sidecar reported it. Indexed, not unique. |
-| `status` | The status the sidecar reported when the job started (`started`). It is **not** updated afterwards. |
+| `job_id` | The sidecar's job ID (names the progress file there). Indexed, not unique. |
+| `provider_job_id` | The compute provider's ID of the call. Empty if the sidecar did not send one. |
+| `status` | `started` when the sidecar reports the job started, then the job's status events: `running`, `training`, and finally `completed` or `failed`. |
 | `model_size` | `4b` or `12b`. |
+| `dataset` | The dataset file the job trains on; empty for the sidecar's default dataset. |
 | `num_train_steps` | Steps the job was asked to train. |
+| `last_step`, `last_loss` | From the newest progress event (`last_loss` is null until a progress event has a loss). |
+| `final_loss` | The training loss reported when the job completed. Null before. |
+| `error` | Why the job failed. Empty otherwise. |
 | `started_at` | When the sidecar says the job started. |
+| `created_at` | When the row was made. |
+| `finished_at` | When the job completed or failed. Null while it runs. |
+
+## The `gb_training_job_events` table
+
+One row per event the sidecar reported for a job, so a job's feed and loss graph can be shown after it finished.
+
+| Column | Meaning |
+| --- | --- |
+| `run_id` | The job run (`gb_training_job_runs.id`); the rows are deleted with it. |
+| `seq` | The event's index in the sidecar's progress file. `(run_id, seq)` is the primary key, so an event the stream replays is stored once, and a reconnect resumes after the highest `seq`. |
+| `type` | `status` or `progress`. |
+| `data` | The event as JSON. |
 | `created_at` | When the row was made. |
 
 Timestamps follow the usual convention of the backend (see [Database](/getting-started/database)): RFC 3339 UTC text with second precision on SQLite, `TIMESTAMPTZ` on PostgreSQL.
 
-From Go (`relational` package): `RecordTrainingJobRun(ctx, db, run)` stores a `TrainingJobRun` and returns its ID (`id` and `created_at` of `run` are ignored); `GetTrainingJobRun(ctx, db, id)` reads one, or returns `relational.ErrNotFound`.
+From Go (`relational` package): `RecordTrainingJobRun(ctx, db, run)` stores a `TrainingJobRun` and returns its ID (`id`, `created_at` and the fields that only events set are ignored); `GetTrainingJobRun(ctx, db, id)` reads one, or returns `relational.ErrNotFound`; `ListTrainingJobRuns(ctx, db, limit, unfinished)` lists them (newest first, or only the unfinished ones, oldest first); `UpdateTrainingJobRun(ctx, db, id, update)` writes the fields that are set in a `TrainingJobRunUpdate`; `RecordTrainingJobEvent`, `ListTrainingJobEvents` and `NextTrainingJobEventSeq` handle the events.
 
-A job that outlives its timeout (`SIDECAR_TRAIN_TIMEOUT_S`, default 7200 seconds) is cancelled by the provider. Since `status` is not updated, the table says a job was *started*, not how it ended.
+A job that outlives its timeout (`SIDECAR_TRAIN_TIMEOUT_S`, default 7200 seconds) is cancelled by the provider. If its container could not report that, the monitor marks the job `failed` after 3 hours (see [Training progress](#training-progress)).
+
+Database files created by an earlier version are not migrated: delete the SQLite file (or drop `gb_training_job_runs` on PostgreSQL) and the server recreates the tables.
 
 ## The Go client
 
@@ -110,10 +177,17 @@ c := sidecar.New("")   // "" is sidecar.DefaultBaseURL
 job, err := c.StartTrainingJob(ctx, sidecar.StartTrainingJobRequest{
     NumTrainSteps: 500,                  // 0 = the sidecar's default (100)
     ModelSize:     sidecar.ModelSize12B, // "" = the sidecar's default (4b)
+    Dataset:       "my.jsonl",           // "" = the sidecar's default dataset
 })
-// job.JobID, job.Status, job.ModelSize, job.NumTrainSteps, job.StartedAt
+// job.JobID, job.ProviderJobID, job.Status, job.ModelSize, job.Dataset, job.NumTrainSteps, job.StartedAt
+
+// Follow a job: fn gets each event from index `from` on; nil is returned when the sidecar ends the stream.
+err = c.StreamTrainingJobEvents(ctx, job.JobID, 0, func(ev sidecar.TrainingEvent) error {
+    // ev.Seq, ev.Type ("status" or "progress"), ev.Status, ev.Step, ev.Loss, ev.FinalLoss, ev.Error, ...
+    return nil // returning an error stops the stream
+})
 ```
 
-`StartTrainingJob` returns an error for a negative `NumTrainSteps`, for any status other than 200 from the sidecar, for a body that is not the expected JSON, and for an answer without a `job_id`. The dataset calls are in [Training datasets](/training/datasets#go-client).
+`StartTrainingJob` returns an error for a negative `NumTrainSteps`, for any status other than 200 from the sidecar (a `*sidecar.StatusError`), for a body that is not the expected JSON, and for an answer without a `job_id`. `StreamTrainingJobEvents` returns nil when the sidecar ends the stream (after the job's last event, or after the sidecar's time limit; reconnect with `from` = the last `Seq` + 1), `fn`'s error if `fn` fails, the context's error when it is done, and an error for a failed connection, a bad status or an event that is not JSON. The optional fields of `sidecar.TrainingEvent` are pointers, nil when the event does not have them. The dataset calls are in [Training datasets](/training/datasets#go-client).
 
-The tests (`internal/sidecar/*_test.go`, `internal/api/admin/trainingjobs_test.go`) run against an `httptest` server and a fake client, so they need neither Python nor a cloud account.
+The tests (`internal/sidecar/*_test.go`, `internal/api/admin/trainingjobs_test.go`, `trainingmonitor_test.go`) run against an `httptest` server and a fake sidecar, so they need neither Python nor a cloud account.

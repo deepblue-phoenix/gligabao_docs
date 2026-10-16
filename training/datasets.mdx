@@ -54,12 +54,16 @@ Timestamps are timezone-aware UTC, so the Go client can parse them.
 
 | Endpoint | Behaviour |
 | --- | --- |
-| `POST /datasets/upload` | Body `{filename, content}`; `content` is decoded as base64 if it is valid base64, otherwise taken as a plain utf-8 jsonl string. `400` if the filename or content is missing. Answers `{status, message, size_bytes}`. |
+| `POST /datasets/upload` | Body `{filename, content}`; `content` is decoded as base64 if it is valid base64, otherwise taken as a plain utf-8 jsonl string. `400` if the filename or content is missing, or the filename is not a plain `*.jsonl` name (no path, no leading dot). Answers `{status, message, size_bytes}`. |
 | `GET /datasets/list` | The `.jsonl` files on the data volume as `TrainingDataset` objects. |
 
-The upload writes the bytes to the one dataset path the trainer reads (`/data/gemma4_tool_calling_news_finance_v1.jsonl`), whatever the filename, and keeps the given `filename` and the upload time in a metadata file (`/data/.metadata.json`). The list reports that `uploaded_at` for the file the metadata names. So an upload **replaces** the dataset the next job trains on.
+The upload stores the bytes as `/data/<filename>` (an upload with the same name replaces that file) and keeps the given `filename` and the upload time in a metadata file (`/data/.metadata.json`). The list reports that `uploaded_at` for the file the metadata names, that is, the most recent upload. Several datasets can therefore live side by side.
 
-`modal run app.py --action sync` is the CLI way: it uploads the local `finetune_data` file, but only if it is newer than the remote one. `--action train` does it first.
+## Choosing the dataset of a job
+
+A job names its dataset by file name, in the `dataset` field of `POST /training/job_start` (and of the [admin endpoint](/training/jobs#starting-a-job-the-admin-endpoint) that calls it): the file must be a `*.jsonl` in `/data`, else the sidecar answers `400`. Without a `dataset` the job trains on the default dataset, `/data/gemma4_tool_calling_news_finance_v1.jsonl` (what `modal run app.py --action sync` writes). The **training** view of the admin UI fills its dataset picker from `GET /v1/gb/admin/api/training/datasets`, which returns the sidecar's list (`{"datasets": [...]}`; `502` if the sidecar fails, `503` without a sidecar).
+
+`modal run app.py --action sync` is the CLI way: it uploads the local `finetune_data` file as the default dataset, but only if it is newer than the remote one. `--action train` does it first.
 
 ## Go client
 
@@ -68,4 +72,4 @@ resp, err := c.UploadTrainingDataset(ctx, "data.jsonl", jsonlBytes)  // POST /da
 sets, err := c.ListTrainingDatasets(ctx)                             // GET /datasets/list
 ```
 
-`UploadTrainingDataset` base64-encodes the content and refuses an empty filename or content. `ListTrainingDatasets` returns `[]sidecar.TrainingDataset`; `SizeBytes`, `UploadedAt` and `ModifiedAt` are pointers, nil when the sidecar does not know them. There is no admin endpoint for datasets yet.
+`UploadTrainingDataset` base64-encodes the content and refuses an empty filename or content. `ListTrainingDatasets` returns `[]sidecar.TrainingDataset`; `SizeBytes`, `UploadedAt` and `ModifiedAt` are pointers, nil when the sidecar does not know them. The Go server exposes the list to the admin UI (above); there is no admin endpoint to upload a dataset.

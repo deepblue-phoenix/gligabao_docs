@@ -3,17 +3,19 @@ title: "Training"
 description: "How gligabao fine-tunes Gemma-4 on a cloud GPU: the pieces, how a job flows from the admin API to the provider, and where each part is documented."
 ---
 
-`internal/sidecar/`, `internal/api/admin/trainingjobs.go`, `internal/db/relational/`, `side_car/ai_train/`
+`internal/sidecar/`, `internal/api/admin/trainingjobs.go`, `internal/api/admin/trainingmonitor.go`, `admin_ui/src/training.ts`, `internal/db/relational/`, `side_car/ai_train/`
 
-gligabao can fine-tune Gemma-4 (4B and 12B, with LoRA adapters) on a cloud GPU and serve the result. The training code is Python and runs behind the [Python sidecar](/operations/sidecar); the Go server starts jobs there, uploads datasets to it and keeps a record of every job it started.
+gligabao can fine-tune Gemma-4 (4B and 12B, with LoRA adapters) on a cloud GPU and serve the result. The training code is Python and runs behind the [Python sidecar](/operations/sidecar); the Go server starts jobs there, follows their progress (status and loss) and keeps a record of every job it started. The [admin UI](/getting-started/configuration#admin-ui) has a **training** view to run jobs, pick their dataset and watch them.
 
 ## The pieces
 
 | Piece | Where | Does |
 | --- | --- | --- |
-| Admin endpoint | Go, `internal/api/admin/trainingjobs.go` | `POST /v1/gb/admin/api/training/jobs`: validates a request, starts a job and records it. |
-| Go client | Go, `internal/sidecar/` | The only code that knows the sidecar's HTTP API: `StartTrainingJob`, `UploadTrainingDataset`, `ListTrainingDatasets`. |
-| `gb_training_job_runs` | Database (SQLite and PostgreSQL) | One row per job the sidecar reported as started. |
+| Admin UI, training view | `admin_ui/src/training.ts` | A `Run` button (model size, dataset, steps), the list of jobs, and for the selected job a live event feed and a loss graph. |
+| Admin endpoints | Go, `internal/api/admin/trainingjobs.go` | `POST` / `GET /v1/gb/admin/api/training/jobs` (start a job and record it; list jobs), `GET .../training/datasets` and the SSE feed `GET .../training/events`. |
+| Training monitor | Go, `internal/api/admin/trainingmonitor.go` | Follows the sidecar's progress stream of every job, stores the events, keeps the job's row current and forwards the events to the admin UI. |
+| Go client | Go, `internal/sidecar/` | The only code that knows the sidecar's HTTP API: `StartTrainingJob`, `StreamTrainingJobEvents`, `UploadTrainingDataset`, `ListTrainingDatasets`. |
+| `gb_training_job_runs`, `gb_training_job_events` | Database (SQLite and PostgreSQL) | One row per job started, kept current as it runs; one row per event the sidecar reported for it. |
 | Sidecar web API | Python, `side_car/ai_train/api/` | The REST API the Go client calls: `/training/*`, `/datasets/*`, `/infer/*`, `/evals/*`. |
 | Training code | Python, `side_car/ai_train/ai_train_core/` | Runs inside the GPU container: dataset sync, the 4B and 12B pipelines, progress, inference. |
 | Provider | Python, `side_car/ai_train/providers/` | Everything cloud-specific (Modal today) behind one interface. |
@@ -36,18 +38,34 @@ Go server ◄──────────────────────�
 ```
 
 1. The admin endpoint validates the request and calls the Go client.
-2. The client calls `POST /training/job_start` on the sidecar, which spawns the job on the compute provider **without waiting for it** and reports back with a `TrainingJob`.
-3. The server stores the `TrainingJob` as a new row of `gb_training_job_runs`, and answers with that row.
+2. The client calls `POST /training/job_start` on the sidecar, which spawns the job on the compute provider **without waiting for it** and reports back with a `TrainingJob`. The sidecar rejects (400) a `dataset` that is not on its data volume.
+3. The server stores the `TrainingJob` as a new row of `gb_training_job_runs`, answers with that row, and hands the job to the training monitor.
 
 Details: [Training jobs](/training/jobs).
+
+## How progress comes back
+
+```
+training container ── appends events ──► /progress/training_progress_<job_id>.jsonl   (provider volume)
+                                                           │
+sidecar web API ◄── GET /training/job_events (tails the file) ─┘
+        │  SSE
+        ▼
+Go server (training monitor): stores each event, updates the job's row
+        │  SSE: GET /v1/gb/admin/api/training/events
+        ▼
+admin UI: job list, event feed, loss graph
+```
+
+The events are status changes (`running`, `training`, `completed` with the final loss, `failed` with the error) and one progress event per trainer log (step, loss, learning rate, epoch). Because the Go server stores them, the loss graph of a finished job is still there after the sidecar's files are gone, and the Go server resumes following unfinished jobs after a restart. See [Training progress](/training/jobs#training-progress).
 
 ## A typical workflow
 
 1. Set up the sidecar and the provider once, see [Running on Modal](/training/running).
-2. Put a dataset on the data volume: `modal run app.py --action sync`, or [upload one](/training/datasets#uploading-and-listing) through the sidecar API. Format: [Training datasets](/training/datasets).
-3. Pick a size ([Model sizes](/training/models)); start with `4b` and 100 to 200 steps to check that the loss falls.
-4. Start the job: the [admin endpoint](/training/jobs#starting-a-job-the-admin-endpoint) from the server, or `modal run app.py --action train` directly.
-5. Watch it with `GET /training/job_progress` on the [sidecar API](/training/sidecar-api).
+2. Put one or more datasets on the data volume: `modal run app.py --action sync`, or [upload them](/training/datasets#uploading-and-listing) through the sidecar API. Format: [Training datasets](/training/datasets).
+3. Pick a size ([Model sizes](/training/models)) and a dataset; start with `4b` and 100 to 200 steps to check that the loss falls.
+4. Start the job: the `Run` button of the admin UI, the [admin endpoint](/training/jobs#starting-a-job-the-admin-endpoint) it calls, or `modal run app.py --action train` directly (that one is not recorded by the server).
+5. Watch it in the **training** view of the admin UI (feed and loss graph), or through [`GET /v1/gb/admin/api/training/events`](/training/jobs#training-progress); the sidecar's own views are `GET /training/job_events` and `GET /training/job_progress` ([sidecar API](/training/sidecar-api)).
 6. Try the adapter with `POST /infer/query`.
 
 ## Configuration
@@ -71,6 +89,6 @@ The settings of the sidecar side (`SIDECAR_PROVIDER`, `SIDECAR_GPU`, the volumes
 
 ## Not tracked yet
 
-- The state of a job after it started (running, succeeded, failed) and its loss curve are not stored in the database; `GET /training/job_progress` on the sidecar is the live view, for the newest job.
-- There is no endpoint to list or read the recorded jobs; they are in the table, and `relational.GetTrainingJobRun` reads one.
-- The admin UI has no view for training jobs yet; start one through the endpoint.
+- A job's end is only known through the events the training container writes. If the container dies without writing `failed` (killed, out of memory, an image that fails to build), nothing reports it: the Go server marks the job `failed` 3 hours after it started.
+- Jobs started directly with `modal run` are not in the database; only jobs started through the admin endpoint (or the UI) are.
+- There is no endpoint to cancel a job.

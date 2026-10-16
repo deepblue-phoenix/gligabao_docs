@@ -3,9 +3,9 @@ title: "Python sidecar"
 description: "A FastAPI service that runs next to the Go server, its container and its Go client, plus remote Gemma-4 fine-tuning."
 ---
 
-`side_car/`, `side_car/ai_train/`, `Dockerfile.sidecar`, `docker-compose.yml`, `run_build_sidecar.sh`, `internal/sidecar/sidecar.go`, `internal/sidecar/training_jobs.go`, `internal/sidecar/training_datasets.go`
+`side_car/`, `side_car/ai_train/`, `Dockerfile.sidecar`, `docker-compose.yml`, `run_build_sidecar.sh`, `internal/sidecar/sidecar.go`, `internal/sidecar/training_jobs.go`, `internal/sidecar/training_events.go`, `internal/sidecar/training_datasets.go`
 
-The sidecar is a small Python service that runs next to the Go server and that the server talks to over HTTP. It exists for work that is easier to do in Python (libraries that have no good Go equivalent). **Today the service itself is only a skeleton**: it starts, listens, and answers a health check. Alongside it sits a separate, much larger part: Gemma-4 fine-tuning and inference on remote (cloud GPU) infrastructure, with its own web API; see [Remote training](#remote-training). The Go server calls that web API through the Go client to start training jobs (the admin endpoint `POST /v1/gb/admin/api/training/jobs`) and records each one; this is documented in the [Training](/training/overview) section.
+The sidecar is a small Python service that runs next to the Go server and that the server talks to over HTTP. It exists for work that is easier to do in Python (libraries that have no good Go equivalent). **Today the service itself is only a skeleton**: it starts, listens, and answers a health check. Alongside it sits a separate, much larger part: Gemma-4 fine-tuning and inference on remote (cloud GPU) infrastructure, with its own web API; see [Remote training](#remote-training). The Go server calls that web API through the Go client to start training jobs (the admin endpoint `POST /v1/gb/admin/api/training/jobs`, or the **training** view of the admin UI), records each one and follows its progress over SSE; this is documented in the [Training](/training/overview) section.
 
 ## The service
 
@@ -66,7 +66,7 @@ On that network the server reaches the sidecar at `http://sidecar:8787` (the ser
 
 ## The Go client
 
-`internal/sidecar` is the only package in the Go code that knows the sidecar's HTTP API: `sidecar.go` has the client and `Health`, `training_datasets.go` and `training_jobs.go` the training calls.
+`internal/sidecar` is the only package in the Go code that knows the sidecar's HTTP API: `sidecar.go` has the client and `Health`, `training_datasets.go`, `training_jobs.go` and `training_events.go` the training calls.
 
 ```go
 c := sidecar.New("")                       // "" is sidecar.DefaultBaseURL, http://127.0.0.1:8787
@@ -75,8 +75,8 @@ resp, err := c.Health(ctx)                 // resp.Status == "ok"
 
 - `sidecar.New(baseURL)` returns a `*Client` with a 30 second timeout per request. A trailing `/` on the URL is ignored.
 - `Client.Health(ctx)` calls `GET /health`. It returns an error if the sidecar cannot be reached, answers with a status other than 200, sends a body that is not the expected JSON, or reports a `status` other than `"ok"`.
-- `Client.StartTrainingJob(ctx, req)` calls `POST /training/job_start` and returns the `TrainingJob` the sidecar reports; `Client.UploadTrainingDataset(ctx, filename, content)` and `Client.ListTrainingDatasets(ctx)` call `POST /datasets/upload` and `GET /datasets/list`. See [Training jobs](/training/jobs#the-go-client) and [Training datasets](/training/datasets#go-client).
-- Errors name the method and path (`sidecar GET /health: ...`) and, for a bad status, include the start of the response body.
+- `Client.StartTrainingJob(ctx, req)` calls `POST /training/job_start` and returns the `TrainingJob` the sidecar reports; `Client.StreamTrainingJobEvents(ctx, jobID, from, fn)` follows `GET /training/job_events` (SSE) and calls `fn` with each event; `Client.UploadTrainingDataset(ctx, filename, content)` and `Client.ListTrainingDatasets(ctx)` call `POST /datasets/upload` and `GET /datasets/list`. See [Training jobs](/training/jobs#the-go-client) and [Training datasets](/training/datasets#go-client).
+- Errors name the method and path (`sidecar GET /health: ...`) and, for a bad status, include the start of the response body. A bad status is a `*sidecar.StatusError` (`Code`, `Body`, and `Message()`, the sidecar's `error` text), so callers can tell a request the sidecar rejected (400) from a sidecar that is down. The event stream has no overall timeout; its context ends it.
 
 The tests (`internal/sidecar/sidecar_test.go`) run the client against an `httptest` server, so they need neither Python nor Docker.
 

@@ -4,6 +4,20 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.8.0] - 2026-10-26
+
+### Added
+- Training jobs page: "Training progress" (the training monitor, the admin SSE feed `GET /v1/gb/admin/api/training/events`, the training view of the admin UI), "Listing jobs and datasets" (`GET /v1/gb/admin/api/training/jobs` and `.../training/datasets`), and the `gb_training_job_events` table. Documents gligabao 0.28.0.
+- Sidecar training API page: the progress events (status and progress, with their fields) and `GET /training/job_events`, the SSE stream the Go server follows.
+- Training datasets page: "Choosing the dataset of a job".
+- The Admin UI section of Configuration lists the views, including the new training view.
+
+### Changed
+- Training jobs: `job_id` is the sidecar's ID of the job and the new `provider_job_id` the provider's; the request and the `TrainingJob` have a `dataset`; the `gb_training_job_runs` table now tracks the job (`status` follows it, plus `dataset`, `last_step`, `last_loss`, `final_loss`, `error`, `finished_at`); a dataset the sidecar rejects is a `400`; the Go client has `StreamTrainingJobEvents` and `StatusError`.
+- Training datasets: an upload is stored under its own `filename` (a plain `*.jsonl` name) instead of replacing the one default dataset.
+- Training overview: the flow now includes how progress comes back; "Not tracked yet" lists what is still missing (jobs started with `modal run`, jobs whose container dies silently, cancelling).
+- Running on Modal: `--dataset`, and `progress_events.py` in the code layout. Python sidecar page: the Go client's new method and `StatusError`.
+
 ## [0.7.0] - 2026-10-26
 
 ### Added

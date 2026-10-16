@@ -10,7 +10,8 @@ The web API is a FastAPI app created by `create_api` in `api/api.py` and served 
 | Endpoint | Used by the Go server | Purpose |
 | --- | --- | --- |
 | `POST /training/job_start` | yes | Start a training job. |
-| `GET /training/job_progress` | no | Live progress. |
+| `GET /training/job_progress` | no | The progress entries of a job, as one JSON answer. |
+| `GET /training/job_events` | yes | The events of a job as Server-Sent Events. |
 | `POST /datasets/upload` | yes | Upload a training dataset. |
 | `GET /datasets/list` | yes | List the training datasets. |
 | `POST /infer/query` | no | Generate with the fine-tuned adapter. |
@@ -22,27 +23,54 @@ The routes were put under these prefixes in gligabao 0.26.2. They used to be `/s
 
 ## `POST /training/job_start`
 
-Body `{num_train_steps?, model_size?}` (defaults `100` and `4b`). The sidecar spawns the job and answers with a [`TrainingJob`](/training/jobs#the-trainingjob-struct). `400` with `{"error": ...}` for a `model_size` that is not `4b` or `12b`, and for a `num_train_steps` that is not a positive integer. It returns as soon as the job is spawned.
+Body `{num_train_steps?, model_size?, dataset?}` (defaults `100`, `4b` and the default dataset). The sidecar generates the job's ID, spawns the job and answers with a [`TrainingJob`](/training/jobs#the-trainingjob-struct). `400` with `{"error": ...}` for a `model_size` that is not `4b` or `12b`, for a `num_train_steps` that is not a positive integer, and for a `dataset` that is not a plain `*.jsonl` file name or is not on the data volume. It returns as soon as the job is spawned.
 
 ```sh
 curl -X POST $URL/training/job_start -H "Content-Type: application/json" \
-  -d '{"num_train_steps": 500, "model_size": "12b"}'
+  -d '{"num_train_steps": 500, "model_size": "12b", "dataset": "my.jsonl"}'
 ```
 
-## `GET /training/job_progress`
+## Progress events
 
-The entries of the newest progress file, as `{"progress": [...]}` (an empty list when there is none). The training run appends one object per trainer log to `training_progress_<timestamp>.jsonl` on the progress volume (old files are kept; readers pick the newest by the timestamp in the name):
+The training run appends one JSON object per event to `training_progress_<job_id>.jsonl` on the progress volume (old files are kept). There are two types; a line without a `type` (written by older versions) is a progress event.
+
+Status events, `{"type": "status", "status": ..., "timestamp": ...}`:
+
+| `status` | When | Extra fields |
+| --- | --- | --- |
+| `running` | The training container started. | `model_size`, `num_train_steps` |
+| `training` | The trainer began. | `max_steps` |
+| `completed` | Training finished and the adapter was saved. | `final_loss` |
+| `failed` | Anything raised (a bad dataset, out of memory, ...). | `error` |
+
+`completed` and `failed` end the job. Progress events, one per trainer log:
 
 | Field | Meaning |
 | --- | --- |
 | `step` | The global training step. |
-| `loss` | The training loss. |
+| `loss` | The training loss (`null` for logs without one, and for a loss that is not finite: NaN is not valid JSON). |
 | `learning_rate` | The current learning rate. |
 | `epoch` | The epoch, fractional. |
 | `timestamp` | Unix time of the entry. |
-| `elapsed_seconds` | Seconds since the job started. |
+| `elapsed_seconds` | Seconds since training began. |
 
-The training container commits the volume after every write, and the web container reloads it on each request, because the web container is long-lived and would otherwise show a stale view. The progress is the **newest job's**, not a chosen job's, and there is no Go client method for it yet.
+The training container commits the volume after every write, and the web container reloads it on each poll, because the web container is long-lived and would otherwise show a stale view.
+
+## `GET /training/job_events`
+
+`?job_id=<id>[&from=<n>]` (`400` without a valid `job_id`). A Server-Sent Events stream of the job's events as they are written, from the event with index `n` (default 0):
+
+```
+id: 4
+event: progress
+data: {"type":"progress","step":20,"loss":1.234,"learning_rate":0.0002,"epoch":0.3,"timestamp":1792169586.9,"elapsed_seconds":42.1}
+```
+
+`id` is the event's index in the progress file, `event` its type. While nothing new arrives, `: keepalive` comment lines are sent. The sidecar looks for new events every 2 seconds. The stream ends after the `completed` or `failed` event, or after 5 minutes whatever happened; a reader that wants more reconnects with `from=<last id + 1>`. If the job has no file yet (it is still waiting for a GPU) the stream just waits. The Go client reads it with `StreamTrainingJobEvents`, see [Training progress](/training/jobs#training-progress).
+
+## `GET /training/job_progress`
+
+`[?job_id=<id>]`: the events of that job's progress file, or, without `job_id`, of the most recently modified one, as `{"progress": [...]}` (an empty list when there is none). Unlike the stream it answers once with everything so far. There is no Go client method for it; the Go server uses the stream.
 
 ## Datasets
 
