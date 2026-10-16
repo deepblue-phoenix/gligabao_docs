@@ -68,7 +68,7 @@ The events are status changes (`running`, `training`, `completed` with the final
 
 ## A typical workflow
 
-1. Set up the Modal app (`modal deploy app.py`, see [Running on Modal](/training/running)) and the [sidecar](/operations/sidecar) with your Modal tokens once.
+1. Set up the [sidecar](/operations/sidecar) with your Modal tokens once, and deploy the Modal app: with the **Deploy** button of the admin UI's training view ([Modal app lifecycle](/training/modal)) or `modal deploy app.py` ([Running on Modal](/training/running)).
 2. [Upload](/training/datasets#managing-datasets-go-server) one or more datasets to the Go server (`POST /v1/gb/training/datasets`, or the admin UI's training view). They are sent to the sidecar with the job that uses them. For the default dataset, `modal run app.py --action sync` writes it to the data volume. Format: [Training datasets](/training/datasets).
 3. Pick a size ([Model sizes](/training/models)) and a dataset; start with `4b` and 100 to 200 steps to check that the loss falls.
 4. Start the job: the `Run` button of the admin UI, the [endpoint](/training/jobs#starting-a-job) it calls, or `modal run app.py --action train` directly (that one bypasses the sidecar and is not recorded by the server).
@@ -81,7 +81,7 @@ The events are status changes (`running`, `training`, `completed` with the final
 | --- | --- | --- |
 | `sidecar_url` (env `SIDECAR_URL`) | `http://127.0.0.1:8787` | Base URL of the sidecar's REST API, which the training endpoints call. It is the only service address the Go server is given: there is no Modal setting on the Go side. A key in the file overrides the environment. |
 
-The address is used as given. On the docker compose network that is `http://sidecar:8787` (see [With docker compose](/operations/sidecar#with-docker-compose)). For a job to start, the sidecar at that URL must itself reach the Modal web API: it needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, and the Modal app deployed with `modal deploy app.py` (or `SIDECAR_MODAL_WEB_URL` set, for `modal serve`); see [the sidecar's configuration](/operations/sidecar#configuration). The Go server pings the sidecar's `/health` once on startup; if that fails it runs without a sidecar and the training endpoints answer `503`. The sidecar has no authentication, so keep it on a private network.
+The address is used as given. On the docker compose network that is `http://sidecar:8787` (see [With docker compose](/operations/sidecar#with-docker-compose)). For a job to start, the sidecar at that URL must itself reach the Modal web API: it needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, and the Modal app deployed (from the admin UI, see [Modal app lifecycle](/training/modal), or with `modal deploy app.py`; or `SIDECAR_MODAL_WEB_URL` set, for `modal serve`); see [the sidecar's configuration](/operations/sidecar#configuration). The Go server pings the sidecar's `/health` once on startup; if that fails it runs without a sidecar and the training endpoints answer `503`. The sidecar has no authentication, so keep it on a private network.
 
 The settings of the sidecar itself (`SIDECAR_BACKEND`, `SIDECAR_APP_NAME`, the Modal tokens) are in [Python sidecar](/operations/sidecar#configuration); the settings of the Modal app (`SIDECAR_PROVIDER`, `SIDECAR_GPU`, the volumes, ...) are in [Running on Modal](/training/running#configuration).
 
@@ -92,6 +92,7 @@ The settings of the sidecar itself (`SIDECAR_BACKEND`, `SIDECAR_APP_NAME`, the M
 - [Model sizes](/training/models): 4B and 12B, backends, GPUs, cost, LoRA settings, troubleshooting.
 - [Sidecar training API](/training/sidecar-api): the REST endpoints the sidecar serves and the Modal web API behind them.
 - [Running on Modal](/training/running): the code layout, the `modal` commands, the sidecar's configuration, tests.
+- [Modal app lifecycle](/training/modal): deploy, watch (live log), cancel and stop the Modal app and list its volumes from the sidecar and the admin UI, without the CLI.
 - [Providers and extending](/training/providers): how the provider abstraction works, adding a provider, a model size or a function.
 
 ## Not tracked yet

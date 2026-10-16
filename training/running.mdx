@@ -5,7 +5,7 @@ description: "The ai_train code layout, the modal commands, the sidecar settings
 
 `sidecar/ai_train/`
 
-The training code lives in `sidecar/ai_train/` and runs on [Modal](https://modal.com), the one provider implemented so far. It is ported from `gloflow_phoenix/gf_phoenix/ai_train` and restructured so the cloud-specific parts sit behind a [provider interface](/training/providers). It is the backend behind the [Python sidecar](/operations/sidecar): the sidecar's `modal` backend proxies the Go server's requests to the web API of this app, and nothing else calls it. It runs on Modal, is not imported by `main_sidecar.py` and is not copied into `Dockerfile.sidecar`.
+The training code lives in `sidecar/ai_train/` and runs on [Modal](https://modal.com), the one provider implemented so far. It is ported from `gloflow_phoenix/gf_phoenix/ai_train` and restructured so the cloud-specific parts sit behind a [provider interface](/training/providers). It is the backend behind the [Python sidecar](/operations/sidecar): the sidecar's `modal` backend proxies the Go server's requests to the web API of this app, and nothing else calls it. It runs on Modal and is not imported by `main_sidecar.py`; `Dockerfile.sidecar` copies the directory only so that the sidecar can deploy it. Deploying, stopping and inspecting the app can be done from the sidecar and the admin UI, without the `modal` CLI: see [Modal app lifecycle](/training/modal).
 
 ## Layout
 
@@ -42,7 +42,7 @@ sidecar/ai_train/
 
 ## Prerequisites
 
-The `modal` CLI, logged in (`pip install modal && modal setup`), and a provider secret holding `HF_TOKEN` for the Gemma weights (named by `SIDECAR_HF_SECRET`).
+The `modal` CLI, logged in (`pip install modal && modal setup`), for the commands below (to deploy, stop and look at the app you can use the sidecar and the admin UI instead, see [Modal app lifecycle](/training/modal)), and a provider secret holding `HF_TOKEN` for the Gemma weights (named by `SIDECAR_HF_SECRET`).
 
 ## Commands
 
@@ -57,7 +57,7 @@ modal run app.py --action generate --model-size 4b --prompt "..."     # run the 
 modal serve app.py                                 # web API in dev mode (`modal deploy app.py` to persist)
 ```
 
-`train` syncs the local default dataset first; `--dataset <file>` then trains on that file of the data volume instead of the default dataset. `modal deploy app.py` publishes the [web API](/training/sidecar-api) as the Modal app `gligabao-train`, which the sidecar looks up by name (`SIDECAR_APP_NAME`) and forwards to; the Go server starts jobs through the sidecar (see [Training jobs](/training/jobs)). `modal serve app.py` is the dev mode: it prints a temporary URL that you give the sidecar as `SIDECAR_MODAL_WEB_URL`.
+`train` syncs the local default dataset first; `--dataset <file>` then trains on that file of the data volume instead of the default dataset. `modal deploy app.py` (or the **Deploy** button of the admin UI's training view, which runs the same deploy through the sidecar: [Modal app lifecycle](/training/modal#deploy)) publishes the [web API](/training/sidecar-api) as the Modal app `gligabao-train`, which the sidecar looks up by name (`SIDECAR_APP_NAME`) and forwards to; the Go server starts jobs through the sidecar (see [Training jobs](/training/jobs)). `modal serve app.py` is the dev mode: it prints a temporary URL that you give the sidecar as `SIDECAR_MODAL_WEB_URL`.
 
 The `modal` CLI uses your own Modal login; the sidecar, which looks the app up through the Modal SDK, needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` instead (see the [sidecar's configuration](/operations/sidecar#configuration)).
 

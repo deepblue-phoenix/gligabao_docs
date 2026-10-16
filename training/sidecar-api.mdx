@@ -7,7 +7,7 @@ description: "The REST endpoints of the sidecar web API: training jobs and progr
 
 There are two layers with the same routes. The **sidecar** (`sidecar/routes.py`, see [the service](/operations/sidecar#the-service)) is the REST API the Go server calls; it does not implement the routes, it forwards each one unchanged to its backend and streams the answer back. The **Modal web API**, described on this page, is what the `modal` backend forwards to: a FastAPI app created by `create_api` in `api/api.py` and served by `modal deploy app.py` (or `modal serve app.py` in dev, with `SIDECAR_MODAL_WEB_URL`). It is provider neutral: everything provider-specific (spawning a job, calling a function, committing and reloading volumes) is injected as callables by `app.py`. Only the sidecar calls it; the Go server never does. The request and answer formats below are the same on both layers, since the sidecar changes nothing.
 
-What the sidecar adds: `GET /health` (answered by the sidecar itself, not forwarded) and `502 {"error": ...}` when the backend cannot be reached (for `modal`, also when the deployed app's web URL cannot be found).
+What the sidecar adds: `GET /health` (answered by the sidecar itself, not forwarded), the routes that manage the Modal app itself (`/backends/...`: status, deploy, cancel, stop, volumes; see [Modal app lifecycle](/training/modal#the-api)) and `502 {"error": ...}` when the backend cannot be reached (for `modal`, also when the deployed app's web URL cannot be found).
 
 | Endpoint | Used by the Go server (through the sidecar) | Purpose |
 | --- | --- | --- |

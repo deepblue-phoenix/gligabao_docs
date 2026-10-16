@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.11.0] - 2026-10-28
+
+### Added
+- Training page "Modal app lifecycle" (`/training/modal`, in the Training navigation): how the sidecar manages the Modal app without the `modal` CLI. The admin UI's backend badges (healthy, app deployed or not), Deploy and its stages, the live log (SSE, reconnecting, follow), Cancel, Stop (and what it does to running jobs), Volumes, the sidecar and server routes with the action state, where the state lives (Modal, not `~/.modal.toml`, the sidecar's memory), the container, troubleshooting and what is not included. Documents gligabao 0.34.0.
+
+### Changed
+- Python sidecar page: the "Backend actions" section is now "Backend actions and Modal lifecycle" with the full route table (`GET /backends`, actions, cancel, events, volumes) and the server's admin routes; the container copies `ai_train/` (the code a deploy uploads), so the page no longer says it is not copied.
+- Running on Modal, Training overview (workflow, configuration, section list), Providers, Sidecar training API and Configuration pages: they point to the new page and name the admin UI as a way to deploy besides `modal deploy app.py`.
+
 ## [0.10.0] - 2026-10-26
 
 ### Added
