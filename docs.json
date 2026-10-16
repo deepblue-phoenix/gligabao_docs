@@ -49,6 +49,23 @@
         ]
       },
       {
+        "tab": "Training",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": ["training/overview", "training/running"]
+          },
+          {
+            "group": "Jobs and data",
+            "pages": ["training/jobs", "training/datasets", "training/models"]
+          },
+          {
+            "group": "Internals",
+            "pages": ["training/sidecar-api", "training/providers"]
+          }
+        ]
+      },
+      {
         "tab": "Embedding & ops",
         "groups": [
           {

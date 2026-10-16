@@ -1,0 +1,76 @@
+---
+title: "Training"
+description: "How gligabao fine-tunes Gemma-4 on a cloud GPU: the pieces, how a job flows from the admin API to the provider, and where each part is documented."
+---
+
+`internal/sidecar/`, `internal/api/admin/trainingjobs.go`, `internal/db/relational/`, `side_car/ai_train/`
+
+gligabao can fine-tune Gemma-4 (4B and 12B, with LoRA adapters) on a cloud GPU and serve the result. The training code is Python and runs behind the [Python sidecar](/operations/sidecar); the Go server starts jobs there, uploads datasets to it and keeps a record of every job it started.
+
+## The pieces
+
+| Piece | Where | Does |
+| --- | --- | --- |
+| Admin endpoint | Go, `internal/api/admin/trainingjobs.go` | `POST /v1/gb/admin/api/training/jobs`: validates a request, starts a job and records it. |
+| Go client | Go, `internal/sidecar/` | The only code that knows the sidecar's HTTP API: `StartTrainingJob`, `UploadTrainingDataset`, `ListTrainingDatasets`. |
+| `gb_training_job_runs` | Database (SQLite and PostgreSQL) | One row per job the sidecar reported as started. |
+| Sidecar web API | Python, `side_car/ai_train/api/` | The REST API the Go client calls: `/training/*`, `/datasets/*`, `/infer/*`, `/evals/*`. |
+| Training code | Python, `side_car/ai_train/ai_train_core/` | Runs inside the GPU container: dataset sync, the 4B and 12B pipelines, progress, inference. |
+| Provider | Python, `side_car/ai_train/providers/` | Everything cloud-specific (Modal today) behind one interface. |
+
+## How a job starts
+
+```
+admin client ── POST /v1/gb/admin/api/training/jobs ──► Go server (internal/api/admin)
+                                                           │  sidecar.Client.StartTrainingJob
+                                                           ▼
+                                        sidecar REST API: POST /training/job_start
+                                                           │  spawns the job on the compute provider (Modal)
+                                                           ▼
+                                        sidecar answers with a TrainingJob
+                                                           │
+Go server ◄────────────────────────────────────────────────┘
+   │  INSERT INTO gb_training_job_runs
+   ▼
+201 with the stored row
+```
+
+1. The admin endpoint validates the request and calls the Go client.
+2. The client calls `POST /training/job_start` on the sidecar, which spawns the job on the compute provider **without waiting for it** and reports back with a `TrainingJob`.
+3. The server stores the `TrainingJob` as a new row of `gb_training_job_runs`, and answers with that row.
+
+Details: [Training jobs](/training/jobs).
+
+## A typical workflow
+
+1. Set up the sidecar and the provider once, see [Running on Modal](/training/running).
+2. Put a dataset on the data volume: `modal run app.py --action sync`, or [upload one](/training/datasets#uploading-and-listing) through the sidecar API. Format: [Training datasets](/training/datasets).
+3. Pick a size ([Model sizes](/training/models)); start with `4b` and 100 to 200 steps to check that the loss falls.
+4. Start the job: the [admin endpoint](/training/jobs#starting-a-job-the-admin-endpoint) from the server, or `modal run app.py --action train` directly.
+5. Watch it with `GET /training/job_progress` on the [sidecar API](/training/sidecar-api).
+6. Try the adapter with `POST /infer/query`.
+
+## Configuration
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `sidecar_url` (env `SIDECAR_URL`) | `http://127.0.0.1:8787` | Base URL of the sidecar's REST API, which the admin endpoint calls. A key in the file overrides the environment. |
+
+The address is used as given. On the docker compose network that is `http://sidecar:8787` (see [With docker compose](/operations/sidecar#with-docker-compose)). For a job to start, the URL must reach the sidecar **web API** of `side_car/ai_train` (`modal serve` or `modal deploy`), not only the `/health` skeleton of `main_sidecar.py`. The sidecar has no authentication, so keep it on a private network.
+
+The settings of the sidecar side (`SIDECAR_PROVIDER`, `SIDECAR_GPU`, the volumes, ...) are in [Running on Modal](/training/running#configuration).
+
+## In this section
+
+- [Training jobs](/training/jobs): the `TrainingJob` struct, the admin endpoint, the `gb_training_job_runs` table and the Go client.
+- [Training datasets](/training/datasets): the dataset format, `TrainingDataset`, upload and list.
+- [Model sizes](/training/models): 4B and 12B, backends, GPUs, cost, LoRA settings, troubleshooting.
+- [Sidecar training API](/training/sidecar-api): the REST endpoints behind it all.
+- [Running on Modal](/training/running): the code layout, the `modal` commands, the sidecar's configuration, tests.
+- [Providers and extending](/training/providers): how the provider abstraction works, adding a provider, a model size or a function.
+
+## Not tracked yet
+
+- The state of a job after it started (running, succeeded, failed) and its loss curve are not stored in the database; `GET /training/job_progress` on the sidecar is the live view, for the newest job.
+- There is no endpoint to list or read the recorded jobs; they are in the table, and `relational.GetTrainingJobRun` reads one.
+- The admin UI has no view for training jobs yet; start one through the endpoint.

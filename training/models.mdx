@@ -1,0 +1,74 @@
+---
+title: "Model sizes"
+description: "Gemma-4 4B and 12B: base models, training backends, GPUs, LoRA settings, cost estimates and troubleshooting."
+---
+
+`side_car/ai_train/ai_train_core/model_config.py`, `model_train.py`, `model_train_gemma4_12b.py`
+
+Two sizes can be trained, chosen per job with `model_size` (`4b` or `12b`).
+
+## Comparison
+
+| | 4b | 12b |
+| --- | --- | --- |
+| Base model | `google/gemma-4-E4B-it` | `google/gemma-4-12B-it` |
+| Parameters | 4 billion | 12 billion |
+| Trainable parameters (LoRA r=16) | about 60M (1.5%) | about 180M (1.5%) |
+| Backend | Unsloth | plain transformers + peft + trl |
+| Default GPU | A10G (24 GB) | A100 (40 or 80 GB) |
+| Batch size × gradient accumulation | 2 × 4 | 1 × 8 |
+| Effective batch size | 8 | 8 |
+| Rough speed | 1 to 2 minutes per 100 steps | 3 to 4 minutes per 100 steps |
+| Modal cost | about $1.10 per hour | about $4.10 per hour |
+
+All the numbers are in `ai_train_core/model_config.py` (pure data).
+
+## Why two training paths
+
+`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture, which Unsloth supports. `google/gemma-4-12B-it` uses the newer `gemma4_unified` architecture, which needs `transformers>=5.10.1`; Unsloth pins `transformers<=5.5.0` and has no loader for it. So 12B trains and serves through plain transformers + peft + trl in a separate image, and 4B stays on Unsloth. Both save LoRA adapters to `/models/finetuned_model_<size>`, so the two sizes never overwrite each other. Details in the `model_train_gemma4_12b.py` docstring.
+
+| Size | Image requirements | Code |
+| --- | --- | --- |
+| 4b | `requirements_train.txt` | `model_load.py`, `model_train.py` |
+| 12b | `requirements_gemma4_12b.txt` | `model_train_gemma4_12b.py` |
+
+## LoRA settings
+
+Both use rank 16, alpha 16 and dropout 0 on the q/k/v/o attention projections, with gradient checkpointing and 4-bit quantization of the base model.
+
+| Model | Full precision | 4-bit | LoRA adapters | Training total |
+| --- | --- | --- | --- | --- |
+| 4b | about 8 GB | about 2 GB | about 0.5 GB | about 2.5 GB |
+| 12b | about 24 GB | about 6 GB | about 1.5 GB | about 7.5 GB |
+
+## GPU selection
+
+The default comes from `default_gpu` in `model_config.py`: `4b` is `a10g`, `12b` is `a100`. `SIDECAR_GPU` overrides it for the train and generate functions of **every** size. The job's timeout is `SIDECAR_TRAIN_TIMEOUT_S` (default 7200 seconds). See [Running on Modal](/training/running#configuration).
+
+## Cost estimates
+
+| Steps | 4b on A10G | 12b on A100 |
+| --- | --- | --- |
+| 100 | 5 to 10 minutes, about $0.15 | 15 to 20 minutes, about $0.50 |
+| 500 | 25 to 40 minutes, about $0.60 | 75 to 100 minutes, about $2.40 |
+| 1000 | 50 to 80 minutes, about $1.20 | 150 to 200 minutes, about $4.80 |
+
+These are estimates at Modal's prices when they were written, and include the model load.
+
+## Which one to use
+
+- **4b**: lower cost, a smaller dataset (under about 1000 examples), fast iteration, a simple task (tool calling, classification, basic Q&A), quick tests before a larger run.
+- **12b**: higher quality, a larger dataset (over about 1000 examples), complex reasoning or longer context, production, and a 3 to 4 times higher cost is acceptable.
+
+A sensible path: start with 4b, run 100 to 200 steps to see the loss fall, then either train 4b longer (500 to 1000 steps) or move to 12b, which is what to use in production with 500 to 1000 or more steps.
+
+## Troubleshooting
+
+- **Out of memory on 4b (A10G)**: it should not happen with batch size 2. If it does, reduce the batch size to 1 and raise gradient accumulation to 8.
+- **Out of memory on 12b (A100)**: it should fit with batch size 1. Make sure 4-bit quantization and gradient checkpointing are on; consider the A100 80 GB.
+- **Too slow, 4b**: an A100 is about twice as fast, at a higher cost.
+- **Too slow, 12b**: use the A100 80 GB, or reduce `max_seq_length` from 2048 to 1024.
+
+## Model cards
+
+[google/gemma-4-E4B-it](https://huggingface.co/google/gemma-4-E4B-it), [google/gemma-4-12B-it](https://huggingface.co/google/gemma-4-12B-it), [Unsloth](https://github.com/unslothai/unsloth).

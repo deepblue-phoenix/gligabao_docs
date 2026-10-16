@@ -20,6 +20,7 @@ Configuration is read from `bin/gligabao.toml` (override with `--config`).
 | `chunk_size` | `1024` | Tokens per chunk, see [Chunking](/guides/chunking) |
 | `chunk_overlap_percent` | `20` | Overlap between chunks |
 | `jev_api_key` | `JEV_API_KEY` | Enables Jev, TypeSafe's system 1 model (`jev_base_url` and `jev_model` are optional overrides) |
+| `sidecar_url` | `SIDECAR_URL`, else `http://127.0.0.1:8787` | Base URL of the Python sidecar's REST API, called to start [training jobs](/training/overview) |
 | `eval` | `false` | Register the eval endpoints |
 | `admin_ui` | `false` | Serve the admin panel |
 

@@ -4,6 +4,20 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.7.0] - 2026-10-26
+
+### Added
+- A "Training" tab: a major section with its own navigation, `training/*`. Pages: Training (overview: the pieces, how a job flows from the admin API to the provider, a typical workflow, `sidecar_url`, what is not tracked yet), Running on Modal, Training jobs, Training datasets, Model sizes, Sidecar training API, and Providers and extending. Documents gligabao 0.27.0 (and the dataset endpoints and route renames of 0.26.1 and 0.26.2).
+- Training jobs: the `TrainingJob` struct on the sidecar and Go sides, the admin endpoint `POST /v1/gb/admin/api/training/jobs` (body, answers and error statuses), the `gb_training_job_runs` table and the Go client's `StartTrainingJob`.
+- Training datasets: the jsonl format and how it becomes Gemma turns, `TrainingDataset`, upload and list, and the Go client's `UploadTrainingDataset` and `ListTrainingDatasets`.
+- Model sizes: the 4B/12B comparison, LoRA settings, memory, cost estimates, when to use which, and troubleshooting (from the gligabao `docs/training/MODEL_SIZES.md`).
+- Sidecar training API: every endpoint of the sidecar web API, including the format of the progress entries.
+- `sidecar_url` (env `SIDECAR_URL`) in the configuration table.
+
+### Changed
+- The "Remote training bootstrap" section of the Python sidecar page moved to the Training section: the code layout, `modal` commands and settings are in Running on Modal, the provider abstraction and the "Growing it" steps in Providers and extending, the two training paths in Model sizes. The sidecar page keeps a short "Remote training" section that links to them (the anchor `#remote-training-bootstrap` is gone).
+- The sidecar page no longer says nothing in the server calls the sidecar; it lists the new Go client methods and the step of adding an admin handler.
+
 ## [0.6.0] - 2026-10-29
 
 ### Added

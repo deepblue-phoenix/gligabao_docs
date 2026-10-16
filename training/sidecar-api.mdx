@@ -1,0 +1,61 @@
+---
+title: "Sidecar training API"
+description: "The REST endpoints of the sidecar web API: training jobs and progress, datasets, inference and eval examples."
+---
+
+`side_car/ai_train/api/api.py`, `side_car/ai_train/api/models.py`
+
+The web API is a FastAPI app created by `create_api` in `api/api.py` and served by `modal serve app.py` (dev) or `modal deploy app.py`. It is provider neutral: everything provider-specific (spawning a job, calling a function, committing and reloading volumes) is injected as callables by `app.py`. It is separate from the `/health` skeleton of `main_sidecar.py` (see [the service](/operations/sidecar#the-service)).
+
+| Endpoint | Used by the Go server | Purpose |
+| --- | --- | --- |
+| `POST /training/job_start` | yes | Start a training job. |
+| `GET /training/job_progress` | no | Live progress. |
+| `POST /datasets/upload` | yes | Upload a training dataset. |
+| `GET /datasets/list` | yes | List the training datasets. |
+| `POST /infer/query` | no | Generate with the fine-tuned adapter. |
+| `POST /evals/add_to_dataset` | no | Add an eval example. |
+| `GET /evals/get_dataset_count` | no | Count the eval examples. |
+| `GET /healthz` | no | Liveness: `{"status": "ok", "timestamp": ...}`. |
+
+The routes were put under these prefixes in gligabao 0.26.2. They used to be `/start_training_job`, `/get_training_progress`, `/generate_response`, `/add_to_eval_dataset`, `/get_eval_dataset_count`, `/upload_dataset` and `/list_datasets`.
+
+## `POST /training/job_start`
+
+Body `{num_train_steps?, model_size?}` (defaults `100` and `4b`). The sidecar spawns the job and answers with a [`TrainingJob`](/training/jobs#the-trainingjob-struct). `400` with `{"error": ...}` for a `model_size` that is not `4b` or `12b`, and for a `num_train_steps` that is not a positive integer. It returns as soon as the job is spawned.
+
+```sh
+curl -X POST $URL/training/job_start -H "Content-Type: application/json" \
+  -d '{"num_train_steps": 500, "model_size": "12b"}'
+```
+
+## `GET /training/job_progress`
+
+The entries of the newest progress file, as `{"progress": [...]}` (an empty list when there is none). The training run appends one object per trainer log to `training_progress_<timestamp>.jsonl` on the progress volume (old files are kept; readers pick the newest by the timestamp in the name):
+
+| Field | Meaning |
+| --- | --- |
+| `step` | The global training step. |
+| `loss` | The training loss. |
+| `learning_rate` | The current learning rate. |
+| `epoch` | The epoch, fractional. |
+| `timestamp` | Unix time of the entry. |
+| `elapsed_seconds` | Seconds since the job started. |
+
+The training container commits the volume after every write, and the web container reloads it on each request, because the web container is long-lived and would otherwise show a stale view. The progress is the **newest job's**, not a chosen job's, and there is no Go client method for it yet.
+
+## Datasets
+
+`POST /datasets/upload` and `GET /datasets/list` are described in [Training datasets](/training/datasets#uploading-and-listing).
+
+## `POST /infer/query`
+
+Body `{prompt, max_tokens?, temperature?, model_size?}` (defaults `1024`, `0.7` and `4b`): runs the fine-tuned adapter of that size and answers with the result of the inference function. `400` for an invalid `model_size`. The adapter is read from the models volume, which is reloaded first so a newly trained one is seen.
+
+## Eval examples
+
+`POST /evals/add_to_dataset` takes `{prompt, response, notes?}` (`400` if the prompt or response is missing), appends it with a timestamp to `eval_dataset.jsonl` on the eval volume and commits the volume. `GET /evals/get_dataset_count` answers `{"count": n}`, the number of lines of that file. These examples are collected for later evaluation; they are not training data.
+
+## Tests
+
+`side_car/ai_train/test_ai_train_core.py` tests the API with FastAPI's test client and injected fakes (no Modal, GPU or ML libraries): `cd side_car/ai_train && python -m unittest test_ai_train_core -v`.

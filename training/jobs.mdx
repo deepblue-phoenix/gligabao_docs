@@ -1,0 +1,119 @@
+---
+title: "Training jobs"
+description: "The TrainingJob struct, the admin endpoint that starts a job, the gb_training_job_runs table and the Go client call."
+---
+
+`internal/sidecar/training_jobs.go`, `internal/api/admin/trainingjobs.go`, `internal/db/relational/model/training_job_run.go`, `side_car/ai_train/api/models.py`
+
+How the Go server starts a training job on the sidecar and keeps track of it. The [overview](/training/overview#how-a-job-starts) shows the flow.
+
+## The `TrainingJob` struct
+
+The sidecar reports a started job as a `TrainingJob`; the Go client decodes the same fields into its own struct.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `job_id` | string | The compute provider's ID of the spawned job. Never empty: the Go client returns an error if the sidecar sends none. |
+| `status` | string | What the sidecar reports when the job starts: `started`. |
+| `model_size` | string | `4b` or `12b`. |
+| `num_train_steps` | integer | How many steps the job was asked to train. |
+| `started_at` | RFC 3339 timestamp | When the sidecar started the job. Always timezone-aware UTC, so the Go side can parse it. |
+
+The two definitions:
+
+- **Python**, `side_car/ai_train/api/models.py`: the pydantic model `TrainingJob`. `job_id` has a minimum length of 1, `num_train_steps` must be greater than 0, and a naive `started_at` is treated as local time and converted to UTC.
+- **Go**, `internal/sidecar/training_jobs.go`: `sidecar.TrainingJob`, with the JSON tags above (`StartedAt` is a `time.Time`).
+
+Example answer of `POST /training/job_start`:
+
+```json
+{
+  "job_id": "fc-01JABCDEF",
+  "status": "started",
+  "model_size": "12b",
+  "num_train_steps": 500,
+  "started_at": "2026-10-26T09:30:12.481530Z"
+}
+```
+
+## Starting a job: the admin endpoint
+
+`POST /v1/gb/admin/api/training/jobs[?db=<name>]`, served with the [admin UI](/getting-started/configuration#admin-ui) (it is not registered otherwise, nor when the web assets are not embedded in the binary). `db` picks the database the job is recorded in (the first one, `standard`, without it), like the other admin endpoints.
+
+The body is optional JSON; every field is optional too:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `num_train_steps` | `100` | Training steps. Must be positive. |
+| `model_size` | `4b` | `4b` or `12b` (case-insensitive). See [Model sizes](/training/models). |
+
+An empty body starts a 4b job of 100 steps. A field left out is not sent, so the defaults are the sidecar's (`sidecar.DefaultNumTrainSteps`, `sidecar.DefaultModelSize` in Go).
+
+```sh
+curl -X POST http://localhost:7878/v1/gb/admin/api/training/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"num_train_steps": 500, "model_size": "12b"}'
+```
+
+The answer is `201` with the stored row:
+
+```json
+{
+  "id": 3,
+  "job_id": "fc-01JABCDEF",
+  "status": "started",
+  "model_size": "12b",
+  "num_train_steps": 500,
+  "started_at": "2026-10-26T09:30:12Z",
+  "created_at": "2026-10-26T09:30:13Z"
+}
+```
+
+| Status | When |
+| --- | --- |
+| `201` | The job was started and recorded. |
+| `400` | The body is not valid JSON, `num_train_steps` is negative, or `model_size` is not `4b` or `12b`. The sidecar is not called. |
+| `404` | `db` is not one of the databases the admin UI shows. |
+| `502` | The sidecar could not be reached, or it answered with an error (for example it rejected the request). Nothing is recorded. |
+| `503` | The server has no sidecar client. |
+| `500` | The job was started, but the row could not be written or read back. The message names the `job_id`, so the job can still be found on the provider. |
+
+Every job the sidecar reports as started is a new row, even if an identical one was started a minute before. A start that fails records nothing. The row is written even if the HTTP client disconnects while the job is being started, because by then the job is already running.
+
+## The `gb_training_job_runs` table
+
+One row per training job started. Created with the rest of the schema, on both SQLite and PostgreSQL.
+
+| Column | Meaning |
+| --- | --- |
+| `id` | The record. |
+| `job_id` | The provider's job ID, as the sidecar reported it. Indexed, not unique. |
+| `status` | The status the sidecar reported when the job started (`started`). It is **not** updated afterwards. |
+| `model_size` | `4b` or `12b`. |
+| `num_train_steps` | Steps the job was asked to train. |
+| `started_at` | When the sidecar says the job started. |
+| `created_at` | When the row was made. |
+
+Timestamps follow the usual convention of the backend (see [Database](/getting-started/database)): RFC 3339 UTC text with second precision on SQLite, `TIMESTAMPTZ` on PostgreSQL.
+
+From Go (`relational` package): `RecordTrainingJobRun(ctx, db, run)` stores a `TrainingJobRun` and returns its ID (`id` and `created_at` of `run` are ignored); `GetTrainingJobRun(ctx, db, id)` reads one, or returns `relational.ErrNotFound`.
+
+A job that outlives its timeout (`SIDECAR_TRAIN_TIMEOUT_S`, default 7200 seconds) is cancelled by the provider. Since `status` is not updated, the table says a job was *started*, not how it ended.
+
+## The Go client
+
+`internal/sidecar` is the only package that knows the sidecar's HTTP API (see [The Go client](/operations/sidecar#the-go-client)).
+
+```go
+c := sidecar.New("")   // "" is sidecar.DefaultBaseURL
+
+job, err := c.StartTrainingJob(ctx, sidecar.StartTrainingJobRequest{
+    NumTrainSteps: 500,                  // 0 = the sidecar's default (100)
+    ModelSize:     sidecar.ModelSize12B, // "" = the sidecar's default (4b)
+})
+// job.JobID, job.Status, job.ModelSize, job.NumTrainSteps, job.StartedAt
+```
+
+`StartTrainingJob` returns an error for a negative `NumTrainSteps`, for any status other than 200 from the sidecar, for a body that is not the expected JSON, and for an answer without a `job_id`. The dataset calls are in [Training datasets](/training/datasets#go-client).
+
+The tests (`internal/sidecar/*_test.go`, `internal/api/admin/trainingjobs_test.go`) run against an `httptest` server and a fake client, so they need neither Python nor a cloud account.

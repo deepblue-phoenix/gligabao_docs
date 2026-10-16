@@ -1,0 +1,81 @@
+---
+title: "Running on Modal"
+description: "The ai_train code layout, the modal commands, the sidecar settings and the local tests."
+---
+
+`side_car/ai_train/`
+
+The training code lives in `side_car/ai_train/` and runs on [Modal](https://modal.com), the one provider implemented so far. It is ported from `gloflow_phoenix/gf_phoenix/ai_train` and restructured so the cloud-specific parts sit behind a [provider interface](/training/providers). It is separate from the FastAPI service of `main_sidecar.py`, is not imported by it, and is not copied into `Dockerfile.sidecar`.
+
+## Layout
+
+```
+side_car/ai_train/
+  app.py                      # declares the remote functions + CLI entrypoint (provider-neutral)
+  config.py                   # TrainConfig, overridable by env vars
+  training_data.py            # local path of the dataset
+  requirements_train.txt      # 4B image: Unsloth stack
+  requirements_gemma4_12b.txt # 12B image: plain transformers + peft + trl (no Unsloth)
+  requirements_web.txt        # web API image
+  finetune_data/              # generate_dataset.py + the 325-example tool-calling dataset
+  docs/                       # MODEL_SIZES, TRAINING_DATA_FORMAT, tokenizers_and_processors
+  test_ai_train_core.py       # local unit tests (no GPU / Modal needed)
+  ai_train_core/              # runs inside the container; never imports a provider SDK
+    model_config.py           # 4b / 12b settings (pure data)
+    paths.py                  # container mount points + file locations
+    prompt_format.py          # Gemma turn-marker format shared by training and inference
+    dataset.py                # sync / validate the dataset on the data volume
+    training_common.py        # dataset loading, SFTConfig, adapter saving
+    progress.py               # Trainer callback writing live progress jsonl
+    model_load.py, model_train.py            # 4B via Unsloth
+    model_train_gemma4_12b.py                # 12B without Unsloth (training + inference loading)
+    inference.py              # generate with the trained adapter
+    bootstrap.py              # ping + train dispatch by backend
+  api/
+    api.py                    # FastAPI app (training jobs, progress, generate, eval, datasets)
+  providers/
+    base.py                   # Provider (ABC), FunctionSpec, ImageSpec
+    modal_provider.py         # Modal implementation; the only file that imports modal
+    __init__.py               # get_provider(name)
+```
+
+## Prerequisites
+
+The `modal` CLI, logged in (`pip install modal && modal setup`), and a provider secret holding `HF_TOKEN` for the Gemma weights (named by `SIDECAR_HF_SECRET`).
+
+## Commands
+
+```sh
+cd side_car/ai_train
+modal run app.py                                   # ping: image, volumes, GPU info, whether HF_TOKEN is set
+modal run app.py --action sync                     # upload finetune_data/*.jsonl to the data volume (only if newer)
+modal run app.py --action validate                 # check the remote dataset
+modal run app.py --action train --train-steps 100 --model-size 4b     # 4b on A10G, 12b on A100
+modal run app.py --action generate --model-size 4b --prompt "..."     # run the fine-tuned model
+modal serve app.py                                 # web API in dev mode (`modal deploy app.py` to persist)
+```
+
+`train` syncs the dataset first. `modal serve app.py` serves the [web API](/training/sidecar-api); the Go server starts jobs through it (see [Training jobs](/training/jobs)).
+
+Local tests: `cd side_car/ai_train && python -m unittest test_ai_train_core -v`.
+
+## Configuration
+
+All settings are in `config.py` and can be overridden by environment variable:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SIDECAR_PROVIDER` | `modal` | Compute provider (only `modal` exists). |
+| `SIDECAR_APP_NAME` | `gligabao-train` | Name of the provider app. |
+| `SIDECAR_GPU` | *(empty)* | GPU override for train/generate of every model size (Modal names, e.g. `a100`). Empty means the per-size default: `a10g` for 4b, `a100` for 12b. |
+| `SIDECAR_TRAIN_TIMEOUT_S` | `7200` | Timeout of the train jobs. |
+| `SIDECAR_HF_SECRET` | *(empty)* | Name of a provider secret with `HF_TOKEN`. Empty means no secret is attached. |
+| `SIDECAR_VOL_DATA` | `gligabao-train-data` | Volume mounted at `/data` (datasets). |
+| `SIDECAR_VOL_MODELS` | `gligabao-train-models` | Volume mounted at `/models` (fine-tuned adapters). |
+| `SIDECAR_VOL_PROGRESS` | `gligabao-train-progress` | Volume mounted at `/progress` (training progress). |
+| `SIDECAR_VOL_EVAL` | `gligabao-train-eval` | Volume mounted at `/eval` (eval examples from the web API). |
+| `SIDECAR_VOL_HF_CACHE` | `gligabao-train-hf-cache` | Volume mounted at `/root/.cache/huggingface` (base-model cache, avoids re-downloads). |
+
+Volumes are created if missing.
+
+The Go server has its own setting for where to find the web API, `sidecar_url`; see the [overview](/training/overview#configuration).
