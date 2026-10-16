@@ -14,6 +14,10 @@ export ANTHROPIC_API_KEY=...        # required for remember/recall
 ```
 
 <Tip>
+  Prefer containers? `docker compose up --build` starts the server on `localhost:7878` and the [Python sidecar](/operations/sidecar) on `localhost:8787`, on one Docker network. Set `ANTHROPIC_API_KEY` (and optionally `OPENAI_API_KEY`) in your shell first; data is kept in the `gligabao-data` volume.
+</Tip>
+
+<Tip>
   Run `./run_tests.sh` to run the test suite. Plain `go build ./cmd/gligabao` and `go test ./...` also work.
 </Tip>
 

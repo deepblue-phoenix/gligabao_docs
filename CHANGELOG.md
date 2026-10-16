@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.4.0] - 2026-10-27
+
+### Added
+- A "With docker compose" section on the Python sidecar page: `docker compose up --build` runs the server and the sidecar on one network, the server reaches the sidecar at `http://sidecar:8787`, ports are published on `127.0.0.1` only and data lives in the `gligabao-data` volume. Documents gligabao 0.24.1.
+
+### Changed
+- The Quickstart has a tip for running with docker compose, and the Building section of Building and versioning mentions `docker compose up --build`.
+
 ## [0.3.0] - 2026-10-26
 
 ### Added
