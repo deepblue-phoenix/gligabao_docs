@@ -3,7 +3,7 @@ title: "Training jobs"
 description: "The TrainingJob struct, the training endpoints that start and list jobs and stream their progress, the gb_training_job_runs and gb_training_job_events tables and the Go client calls."
 ---
 
-`internal/sidecar/training_jobs.go`, `internal/sidecar/training_events.go`, `internal/api/training/jobs.go`, `internal/api/training/monitor.go`, `internal/db/relational/model/training_job_run.go`, `side_car/ai_train/api/models.py`, `admin_ui/src/training.ts`
+`internal/sidecar/training_jobs.go`, `internal/sidecar/training_events.go`, `internal/api/training/jobs.go`, `internal/api/training/monitor.go`, `internal/db/relational/model/training_job_run.go`, `sidecar/ai_train/api/models.py`, `admin_ui/src/training.ts`
 
 How the Go server starts a training job through the sidecar, follows its progress and keeps track of it. The Go server talks only to the sidecar; the sidecar proxies each call to the Modal web API, so every sidecar answer below is Modal's, passed on unchanged. The [overview](/training/overview#how-a-job-starts) shows the flow.
 
@@ -23,7 +23,7 @@ The sidecar reports a started job as a `TrainingJob`; the Go client decodes the 
 
 The two definitions:
 
-- **Python**, `side_car/ai_train/api/models.py`: the pydantic model `TrainingJob`. `job_id` has a minimum length of 1, `num_train_steps` must be greater than 0, and a naive `started_at` is treated as local time and converted to UTC.
+- **Python**, `sidecar/ai_train/api/models.py`: the pydantic model `TrainingJob`. `job_id` has a minimum length of 1, `num_train_steps` must be greater than 0, and a naive `started_at` is treated as local time and converted to UTC.
 - **Go**, `internal/sidecar/training_jobs.go`: `sidecar.TrainingJob`, with the JSON tags above (`StartedAt` is a `time.Time`).
 
 Example answer of `POST /training/job_start`:

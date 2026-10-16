@@ -3,7 +3,7 @@ title: "Training datasets"
 description: "The dataset file format, how the Go server stores and lists training datasets, and how a dataset reaches the sidecar inside a job start."
 ---
 
-`internal/api/training/datasets.go`, `internal/db/relational/model/training_dataset.go`, `side_car/ai_train/api/models.py`, `side_car/ai_train/ai_train_core/dataset.py`, `side_car/ai_train/ai_train_core/prompt_format.py`, `side_car/ai_train/finetune_data/`
+`internal/api/training/datasets.go`, `internal/db/relational/model/training_dataset.go`, `sidecar/ai_train/api/models.py`, `sidecar/ai_train/ai_train_core/dataset.py`, `sidecar/ai_train/ai_train_core/prompt_format.py`, `sidecar/ai_train/finetune_data/`
 
 A training dataset is a `.jsonl` file. **Datasets are managed by the Go server alone**: it keeps the files and their records and it serves the REST endpoints that external clients and the admin UI use. The sidecar and the Modal app have no dataset endpoints; they only store a dataset internally, on the data volume (`/data`), when a job needs it. A training dataset is separate from a memory [dataset](/concepts/datasets), which is a container of artifacts, entities and edges in the database.
 
@@ -68,7 +68,7 @@ The sidecar (the Modal web API) stores `dataset_content` on the data volume as `
 
 ## `TrainingDataset` (Python)
 
-`TrainingDataset` (pydantic, `side_car/ai_train/api/models.py`) is how the sidecar loads and passes a dataset around internally; it is not an endpoint body:
+`TrainingDataset` (pydantic, `sidecar/ai_train/api/models.py`) is how the sidecar loads and passes a dataset around internally; it is not an endpoint body:
 
 | Field | Meaning |
 | --- | --- |

@@ -3,14 +3,14 @@ title: "Running on Modal"
 description: "The ai_train code layout, the modal commands, the sidecar settings and the local tests."
 ---
 
-`side_car/ai_train/`
+`sidecar/ai_train/`
 
-The training code lives in `side_car/ai_train/` and runs on [Modal](https://modal.com), the one provider implemented so far. It is ported from `gloflow_phoenix/gf_phoenix/ai_train` and restructured so the cloud-specific parts sit behind a [provider interface](/training/providers). It is the backend behind the [Python sidecar](/operations/sidecar): the sidecar's `modal` backend proxies the Go server's requests to the web API of this app, and nothing else calls it. It runs on Modal, is not imported by `main_sidecar.py` and is not copied into `Dockerfile.sidecar`.
+The training code lives in `sidecar/ai_train/` and runs on [Modal](https://modal.com), the one provider implemented so far. It is ported from `gloflow_phoenix/gf_phoenix/ai_train` and restructured so the cloud-specific parts sit behind a [provider interface](/training/providers). It is the backend behind the [Python sidecar](/operations/sidecar): the sidecar's `modal` backend proxies the Go server's requests to the web API of this app, and nothing else calls it. It runs on Modal, is not imported by `main_sidecar.py` and is not copied into `Dockerfile.sidecar`.
 
 ## Layout
 
 ```
-side_car/ai_train/
+sidecar/ai_train/
   app.py                      # declares the remote functions + CLI entrypoint (provider-neutral)
   config.py                   # TrainConfig, overridable by env vars
   training_data.py            # local path of the dataset
@@ -47,7 +47,7 @@ The `modal` CLI, logged in (`pip install modal && modal setup`), and a provider 
 ## Commands
 
 ```sh
-cd side_car/ai_train
+cd sidecar/ai_train
 modal run app.py                                   # ping: image, volumes, GPU info, whether HF_TOKEN is set
 modal run app.py --action sync                     # upload finetune_data/*.jsonl to the data volume (only if newer)
 modal run app.py --action validate                 # check the remote dataset
@@ -61,7 +61,7 @@ modal serve app.py                                 # web API in dev mode (`modal
 
 The `modal` CLI uses your own Modal login; the sidecar, which looks the app up through the Modal SDK, needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` instead (see the [sidecar's configuration](/operations/sidecar#configuration)).
 
-Local tests: `cd side_car/ai_train && python -m unittest test_ai_train_core -v`.
+Local tests: `cd sidecar/ai_train && python -m unittest test_ai_train_core -v`.
 
 ## Configuration
 

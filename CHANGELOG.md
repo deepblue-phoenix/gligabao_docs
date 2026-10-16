@@ -64,7 +64,7 @@ All notable changes to the gligabao documentation site are documented here. The 
 ## [0.5.0] - 2026-10-28
 
 ### Added
-- A "Remote training bootstrap" section on the Python sidecar page: the `side_car/ai_train/` layout, how to run it with `modal run`, the `SIDECAR_*` settings, how the provider abstraction works and how to add a provider such as AWS. Documents gligabao 0.25.0.
+- A "Remote training bootstrap" section on the Python sidecar page: the `sidecar/ai_train/` layout, how to run it with `modal run`, the `SIDECAR_*` settings, how the provider abstraction works and how to add a provider such as AWS. Documents gligabao 0.25.0.
 
 ## [0.4.0] - 2026-10-27
 

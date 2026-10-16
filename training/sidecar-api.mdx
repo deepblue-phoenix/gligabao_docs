@@ -3,9 +3,9 @@ title: "Sidecar training API"
 description: "The REST endpoints of the sidecar web API: training jobs and progress, inference and eval examples. There are no dataset endpoints."
 ---
 
-`side_car/routes.py`, `side_car/backends/`, `side_car/ai_train/api/api.py`, `side_car/ai_train/api/models.py`
+`sidecar/routes.py`, `sidecar/backends/`, `sidecar/ai_train/api/api.py`, `sidecar/ai_train/api/models.py`
 
-There are two layers with the same routes. The **sidecar** (`side_car/routes.py`, see [the service](/operations/sidecar#the-service)) is the REST API the Go server calls; it does not implement the routes, it forwards each one unchanged to its backend and streams the answer back. The **Modal web API**, described on this page, is what the `modal` backend forwards to: a FastAPI app created by `create_api` in `api/api.py` and served by `modal deploy app.py` (or `modal serve app.py` in dev, with `SIDECAR_MODAL_WEB_URL`). It is provider neutral: everything provider-specific (spawning a job, calling a function, committing and reloading volumes) is injected as callables by `app.py`. Only the sidecar calls it; the Go server never does. The request and answer formats below are the same on both layers, since the sidecar changes nothing.
+There are two layers with the same routes. The **sidecar** (`sidecar/routes.py`, see [the service](/operations/sidecar#the-service)) is the REST API the Go server calls; it does not implement the routes, it forwards each one unchanged to its backend and streams the answer back. The **Modal web API**, described on this page, is what the `modal` backend forwards to: a FastAPI app created by `create_api` in `api/api.py` and served by `modal deploy app.py` (or `modal serve app.py` in dev, with `SIDECAR_MODAL_WEB_URL`). It is provider neutral: everything provider-specific (spawning a job, calling a function, committing and reloading volumes) is injected as callables by `app.py`. Only the sidecar calls it; the Go server never does. The request and answer formats below are the same on both layers, since the sidecar changes nothing.
 
 What the sidecar adds: `GET /health` (answered by the sidecar itself, not forwarded) and `502 {"error": ...}` when the backend cannot be reached (for `modal`, also when the deployed app's web URL cannot be found).
 
@@ -84,4 +84,4 @@ Body `{prompt, max_tokens?, temperature?, model_size?}` (defaults `1024`, `0.7` 
 
 ## Tests
 
-`side_car/ai_train/test_ai_train_core.py` tests the API with FastAPI's test client and injected fakes (no Modal, GPU or ML libraries): `cd side_car/ai_train && python -m unittest test_ai_train_core -v`.
+`sidecar/ai_train/test_ai_train_core.py` tests the API with FastAPI's test client and injected fakes (no Modal, GPU or ML libraries): `cd sidecar/ai_train && python -m unittest test_ai_train_core -v`.
