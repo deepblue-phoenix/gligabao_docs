@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.12.1] - 2026-10-29
+
+### Changed
+- Models and Running on Modal pages: the 12B model now trains and serves through Unsloth, in the same image as 4B (the plain transformers path is gone). Documents gligabao 0.36.0.
+
 ## [0.12.0] - 2026-10-29
 
 ### Added

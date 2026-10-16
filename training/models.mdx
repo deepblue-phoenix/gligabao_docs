@@ -3,7 +3,7 @@ title: "Model sizes"
 description: "Gemma-4 4B and 12B: base models, training backends, GPUs, LoRA settings, cost estimates and troubleshooting."
 ---
 
-`sidecar/ai_train/ai_train_core/model_config.py`, `model_train.py`, `model_train_gemma4_12b.py`
+`sidecar/ai_train/ai_train_core/model_config.py`, `model_train.py`
 
 Two sizes can be trained, chosen per job with `model_size` (`4b` or `12b`).
 
@@ -14,7 +14,7 @@ Two sizes can be trained, chosen per job with `model_size` (`4b` or `12b`).
 | Base model | `google/gemma-4-E4B-it` | `google/gemma-4-12B-it` |
 | Parameters | 4 billion | 12 billion |
 | Trainable parameters (LoRA r=16) | about 60M (1.5%) | about 180M (1.5%) |
-| Backend | Unsloth | plain transformers + peft + trl |
+| Backend | Unsloth | Unsloth |
 | Default GPU | A10G (24 GB) | A100 (40 or 80 GB) |
 | Batch size × gradient accumulation | 2 × 4 | 1 × 8 |
 | Effective batch size | 8 | 8 |
@@ -23,14 +23,14 @@ Two sizes can be trained, chosen per job with `model_size` (`4b` or `12b`).
 
 All the numbers are in `ai_train_core/model_config.py` (pure data).
 
-## Why two training paths
+## Training backend
 
-`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture, which Unsloth supports. `google/gemma-4-12B-it` uses the newer `gemma4_unified` architecture, which needs `transformers>=5.10.1`; Unsloth pins `transformers<=5.5.0` and has no loader for it. So 12B trains and serves through plain transformers + peft + trl in a separate image, and 4B stays on Unsloth. Both save LoRA adapters to `/models/finetuned_model_<size>`, so the two sizes never overwrite each other. Details in the `model_train_gemma4_12b.py` docstring.
+`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture and `google/gemma-4-12B-it` (12B) the newer `gemma4_unified` one. Both train and serve through Unsloth (2026.10.x, `transformers<=5.17`) in one shared image (`requirements_train.txt`). Both sizes save LoRA adapters to `/models/finetuned_model_<size>`, so the two sizes never overwrite each other.
 
 | Size | Image requirements | Code |
 | --- | --- | --- |
 | 4b | `requirements_train.txt` | `model_load.py`, `model_train.py` |
-| 12b | `requirements_gemma4_12b.txt` | `model_train_gemma4_12b.py` |
+| 12b | `requirements_train.txt` (shared) | `model_load.py`, `model_train.py` |
 
 ## LoRA settings
 
