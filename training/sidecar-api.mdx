@@ -44,8 +44,9 @@ Status events, `{"type": "status", "status": ..., "timestamp": ...}`:
 | `training` | The trainer began. | `max_steps` |
 | `completed` | Training finished and the adapter was saved. | `final_loss` |
 | `failed` | Anything raised (a bad dataset, out of memory, ...). | `error` |
+| `cancelled` | The job was asked to stop (see `POST /training/job_cancel` below). | `error` (where it stopped) |
 
-`completed` and `failed` end the job. Progress events, one per trainer log:
+`completed`, `failed` and `cancelled` end the job. Log events, `{"type": "log", "message": ...}`, say what the job is doing: importing the libraries, the dataset loaded, the model loaded, the trainer set up, the adapters saved. Progress events, one per trainer step (`logging_steps=1`):
 
 | Field | Meaning |
 | --- | --- |
@@ -55,6 +56,10 @@ Status events, `{"type": "status", "status": ..., "timestamp": ...}`:
 | `epoch` | The epoch, fractional. |
 | `timestamp` | Unix time of the entry. |
 | `elapsed_seconds` | Seconds since training began. |
+
+## `POST /training/job_cancel`
+
+Body `{"job_id": ...}`. Asks the job to stop: the web container writes `training_progress_<job_id>.stop` on the progress volume, and the training container looks for it between steps (at most every 2 seconds) and between the stages of its setup. It then ends the job with a `cancelled` event, without saving the adapters. So the stop takes effect at the next step, or, during the model load, when the load is done; it is not instant. Answers `200 {"job_id": ..., "status": "stopping"}`, `400` for a bad `job_id`, `404` for a job with no progress file and `409` for one that is over already. Only the training container writes to the progress file, as two containers writing one file would overwrite each other's commits.
 
 The training container commits the volume after every write, and the web container reloads it on each poll, because the web container is long-lived and would otherwise show a stale view.
 

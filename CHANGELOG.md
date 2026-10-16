@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.13.0] - 2026-10-30
+
+### Added
+- Training pages: stopping a job (`POST /v1/gb/training/jobs/{id}/stop`, the sidecar's `POST /training/job_cancel`, `CancelTrainingJob`), the `cancelled` status and the `log` events. Documents gligabao 0.37.0.
+
+### Changed
+- Training pages: the trainer logs every step (`logging_steps=1`), and `cancelled` ends a job like `completed` and `failed`.
+
 ## [0.12.1] - 2026-10-29
 
 ### Changed
