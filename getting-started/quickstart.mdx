@@ -14,7 +14,7 @@ export ANTHROPIC_API_KEY=...        # required for remember/recall
 ```
 
 <Tip>
-  Prefer containers? `docker compose up --build` starts the server on `localhost:7878` and the [Python sidecar](/operations/sidecar) on `localhost:8787`, on one Docker network. Set `ANTHROPIC_API_KEY` (and optionally `OPENAI_API_KEY`) in your shell first; data is kept in the `gligabao-data` volume.
+  Prefer containers? `docker compose up --build` starts the server on `localhost:7878` and the [Python sidecar](/operations/sidecar) on `localhost:8787`, on one Docker network (the server talks only to the sidecar, which needs Modal tokens to proxy training calls to Modal). Set `ANTHROPIC_API_KEY` (and optionally `OPENAI_API_KEY`) in your shell first; data is kept in the `gligabao-data` volume.
 </Tip>
 
 <Tip>

@@ -5,7 +5,7 @@ description: "The TrainingJob struct, the admin endpoints that start and list jo
 
 `internal/sidecar/training_jobs.go`, `internal/sidecar/training_events.go`, `internal/api/admin/trainingjobs.go`, `internal/api/admin/trainingmonitor.go`, `internal/db/relational/model/training_job_run.go`, `side_car/ai_train/api/models.py`, `admin_ui/src/training.ts`
 
-How the Go server starts a training job on the sidecar, follows its progress and keeps track of it. The [overview](/training/overview#how-a-job-starts) shows the flow.
+How the Go server starts a training job through the sidecar, follows its progress and keeps track of it. The Go server talks only to the sidecar; the sidecar proxies each call to the Modal web API, so every sidecar answer below is Modal's, passed on unchanged. The [overview](/training/overview#how-a-job-starts) shows the flow.
 
 ## The `TrainingJob` struct
 
@@ -85,8 +85,8 @@ The answer is `201` with the stored row:
 | `201` | The job was started and recorded. |
 | `400` | The body is not valid JSON, `num_train_steps` is negative, `model_size` is not `4b` or `12b`, or `dataset` is not a plain `*.jsonl` file name (the sidecar is not called). Also when the sidecar itself rejects the request as invalid, for example a dataset that is not on its volume: the answer then carries the sidecar's message. |
 | `404` | `db` is not one of the databases the admin UI shows. |
-| `502` | The sidecar could not be reached, or it answered with another error. Nothing is recorded. |
-| `503` | The server has no sidecar client. |
+| `502` | The sidecar could not be reached, or it answered with another error: its own `502` when it cannot reach Modal (the app is not deployed, or its URL cannot be found), or an error status from the Modal web API. Nothing is recorded. |
+| `503` | The server has no sidecar client: the sidecar failed its health check when the server started ("sidecar is not active"). Start the sidecar and restart the server. |
 | `500` | The job was started, but the row could not be written or read back. The message names the `job_id`, so the job can still be found on the provider. |
 
 Every job the sidecar reports as started is a new row, even if an identical one was started a minute before. A start that fails records nothing. The row is written even if the HTTP client disconnects while the job is being started, because by then the job is already running. Once it is written, the [training monitor](#training-progress) starts following the job.
@@ -96,7 +96,7 @@ Every job the sidecar reports as started is a new row, even if an identical one 
 | Endpoint | Answer |
 | --- | --- |
 | `GET /v1/gb/admin/api/training/jobs[?db=<name>][&limit=<n>]` | `{"jobs": [...]}`: the rows of `gb_training_job_runs`, newest first. `limit` defaults to 50, at most 500 (`400` if it is not a positive integer). |
-| `GET /v1/gb/admin/api/training/datasets` | `{"datasets": [...]}`: the sidecar's training datasets (`filename`, `size_bytes`, `uploaded_at`, `modified_at`). `502` if the sidecar fails, `503` without a sidecar. |
+| `GET /v1/gb/admin/api/training/datasets` | `{"datasets": [...]}`: the sidecar's training datasets (`filename`, `size_bytes`, `uploaded_at`, `modified_at`). `502` if the sidecar fails, `503` if the sidecar is not active. |
 
 ## Training progress
 

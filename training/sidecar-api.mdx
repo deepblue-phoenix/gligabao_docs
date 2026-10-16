@@ -3,11 +3,13 @@ title: "Sidecar training API"
 description: "The REST endpoints of the sidecar web API: training jobs and progress, datasets, inference and eval examples."
 ---
 
-`side_car/ai_train/api/api.py`, `side_car/ai_train/api/models.py`
+`side_car/routes.py`, `side_car/backends/`, `side_car/ai_train/api/api.py`, `side_car/ai_train/api/models.py`
 
-The web API is a FastAPI app created by `create_api` in `api/api.py` and served by `modal serve app.py` (dev) or `modal deploy app.py`. It is provider neutral: everything provider-specific (spawning a job, calling a function, committing and reloading volumes) is injected as callables by `app.py`. It is separate from the `/health` skeleton of `main_sidecar.py` (see [the service](/operations/sidecar#the-service)).
+There are two layers with the same routes. The **sidecar** (`side_car/routes.py`, see [the service](/operations/sidecar#the-service)) is the REST API the Go server calls; it does not implement the routes, it forwards each one unchanged to its backend and streams the answer back. The **Modal web API**, described on this page, is what the `modal` backend forwards to: a FastAPI app created by `create_api` in `api/api.py` and served by `modal deploy app.py` (or `modal serve app.py` in dev, with `SIDECAR_MODAL_WEB_URL`). It is provider neutral: everything provider-specific (spawning a job, calling a function, committing and reloading volumes) is injected as callables by `app.py`. Only the sidecar calls it; the Go server never does. The request and answer formats below are the same on both layers, since the sidecar changes nothing.
 
-| Endpoint | Used by the Go server | Purpose |
+What the sidecar adds: `GET /health` (answered by the sidecar itself, not forwarded) and `502 {"error": ...}` when the backend cannot be reached (for `modal`, also when the deployed app's web URL cannot be found).
+
+| Endpoint | Used by the Go server (through the sidecar) | Purpose |
 | --- | --- | --- |
 | `POST /training/job_start` | yes | Start a training job. |
 | `GET /training/job_progress` | no | The progress entries of a job, as one JSON answer. |
@@ -17,7 +19,7 @@ The web API is a FastAPI app created by `create_api` in `api/api.py` and served 
 | `POST /infer/query` | no | Generate with the fine-tuned adapter. |
 | `POST /evals/add_to_dataset` | no | Add an eval example. |
 | `GET /evals/get_dataset_count` | no | Count the eval examples. |
-| `GET /healthz` | no | Liveness: `{"status": "ok", "timestamp": ...}`. |
+| `GET /healthz` | no | Liveness of the Modal web API: `{"status": "ok", "timestamp": ...}`. Not a sidecar route (the sidecar's own is `GET /health`), so it is not reachable through the sidecar. |
 
 The routes were put under these prefixes in gligabao 0.26.2. They used to be `/start_training_job`, `/get_training_progress`, `/generate_response`, `/add_to_eval_dataset`, `/get_eval_dataset_count`, `/upload_dataset` and `/list_datasets`.
 

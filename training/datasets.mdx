@@ -61,7 +61,7 @@ The upload stores the bytes as `/data/<filename>` (an upload with the same name 
 
 ## Choosing the dataset of a job
 
-A job names its dataset by file name, in the `dataset` field of `POST /training/job_start` (and of the [admin endpoint](/training/jobs#starting-a-job-the-admin-endpoint) that calls it): the file must be a `*.jsonl` in `/data`, else the sidecar answers `400`. Without a `dataset` the job trains on the default dataset, `/data/gemma4_tool_calling_news_finance_v1.jsonl` (what `modal run app.py --action sync` writes). The **training** view of the admin UI fills its dataset picker from `GET /v1/gb/admin/api/training/datasets`, which returns the sidecar's list (`{"datasets": [...]}`; `502` if the sidecar fails, `503` without a sidecar).
+A job names its dataset by file name, in the `dataset` field of `POST /training/job_start` (and of the [admin endpoint](/training/jobs#starting-a-job-the-admin-endpoint) that calls it): the file must be a `*.jsonl` in `/data`, else the sidecar answers `400`. Without a `dataset` the job trains on the default dataset, `/data/gemma4_tool_calling_news_finance_v1.jsonl` (what `modal run app.py --action sync` writes). The **training** view of the admin UI fills its dataset picker from `GET /v1/gb/admin/api/training/datasets`, which returns the sidecar's list (`{"datasets": [...]}`; `502` if the sidecar fails, `503` if the sidecar is not active).
 
 `modal run app.py --action sync` is the CLI way: it uploads the local `finetune_data` file as the default dataset, but only if it is newer than the remote one. `--action train` does it first.
 

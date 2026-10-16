@@ -5,7 +5,7 @@ description: "The ai_train code layout, the modal commands, the sidecar settings
 
 `side_car/ai_train/`
 
-The training code lives in `side_car/ai_train/` and runs on [Modal](https://modal.com), the one provider implemented so far. It is ported from `gloflow_phoenix/gf_phoenix/ai_train` and restructured so the cloud-specific parts sit behind a [provider interface](/training/providers). It is separate from the FastAPI service of `main_sidecar.py`, is not imported by it, and is not copied into `Dockerfile.sidecar`.
+The training code lives in `side_car/ai_train/` and runs on [Modal](https://modal.com), the one provider implemented so far. It is ported from `gloflow_phoenix/gf_phoenix/ai_train` and restructured so the cloud-specific parts sit behind a [provider interface](/training/providers). It is the backend behind the [Python sidecar](/operations/sidecar): the sidecar's `modal` backend proxies the Go server's requests to the web API of this app, and nothing else calls it. It runs on Modal, is not imported by `main_sidecar.py` and is not copied into `Dockerfile.sidecar`.
 
 ## Layout
 
@@ -57,13 +57,15 @@ modal run app.py --action generate --model-size 4b --prompt "..."     # run the 
 modal serve app.py                                 # web API in dev mode (`modal deploy app.py` to persist)
 ```
 
-`train` syncs the local default dataset first; `--dataset <file>` then trains on that file of the data volume instead of the default dataset. `modal serve app.py` serves the [web API](/training/sidecar-api); the Go server starts jobs through it (see [Training jobs](/training/jobs)).
+`train` syncs the local default dataset first; `--dataset <file>` then trains on that file of the data volume instead of the default dataset. `modal deploy app.py` publishes the [web API](/training/sidecar-api) as the Modal app `gligabao-train`, which the sidecar looks up by name (`SIDECAR_APP_NAME`) and forwards to; the Go server starts jobs through the sidecar (see [Training jobs](/training/jobs)). `modal serve app.py` is the dev mode: it prints a temporary URL that you give the sidecar as `SIDECAR_MODAL_WEB_URL`.
+
+The `modal` CLI uses your own Modal login; the sidecar, which looks the app up through the Modal SDK, needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` instead (see the [sidecar's configuration](/operations/sidecar#configuration)).
 
 Local tests: `cd side_car/ai_train && python -m unittest test_ai_train_core -v`.
 
 ## Configuration
 
-All settings are in `config.py` and can be overridden by environment variable:
+These are the settings of the Modal app, in `config.py`; they can be overridden by environment variable when the app is deployed. The sidecar's own settings (`SIDECAR_BACKEND`, `SIDECAR_MODAL_WEB_URL`, the tokens) are on the [sidecar page](/operations/sidecar#configuration). `SIDECAR_APP_NAME` is read by both and must have the same value.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -80,4 +82,4 @@ All settings are in `config.py` and can be overridden by environment variable:
 
 Volumes are created if missing.
 
-The Go server has its own setting for where to find the web API, `sidecar_url`; see the [overview](/training/overview#configuration).
+The Go server's only setting is `sidecar_url`, the address of the sidecar, not of Modal; see the [overview](/training/overview#configuration).

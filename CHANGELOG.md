@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.9.0] - 2026-10-26
+
+### Added
+- Python sidecar page: "Backends" (the sidecar forwards every route unchanged to a pluggable backend, `502` when it cannot be reached, the `modal` backend, `modal deploy` versus `modal serve` with `SIDECAR_MODAL_WEB_URL`, adding a backend), "Configuration" (`SIDECAR_BACKEND`, `SIDECAR_APP_NAME`, `SIDECAR_MODAL_WEB_URL`, `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `SidecarConfig`), and "Startup check and status" (the one-time health check, `server.SidecarActive`, `GET /v1/gb/admin/api/sidecar/status`, the admin UI's sidecar badge). Documents gligabao 0.29.0 to 0.29.3.
+
+### Changed
+- The docs now say that the Go server only ever talks to the sidecar and the sidecar proxies to Modal: the Go code has no Modal client, token or URL. Updated on the Python sidecar page, the Training overview (pieces table, job-start and progress diagrams, `sidecar_url`), Sidecar training API (two layers: the sidecar's routes and the Modal web API behind them; `/healthz` is Modal's, `/health` the sidecar's), Running on Modal (the app is the sidecar's backend; `modal deploy`; the sidecar uses Modal tokens), Training jobs (`502` and `503` meaning), Configuration and Quickstart.
+- Python sidecar page: the service is no longer described as a skeleton; the container needs the Modal tokens, copies `routes.py`, `backends/` and `sidecar_config.py`, and the "Adding an endpoint" steps now start with the route table and the backend.
+- The `503` of the training endpoints now reads "sidecar is not active" (the sidecar failed its health check at startup).
+
 ## [0.8.0] - 2026-10-26
 
 ### Added
