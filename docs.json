@@ -57,7 +57,7 @@
           },
           {
             "group": "Operations",
-            "pages": ["operations/model-runs", "operations/evals", "operations/experiments", "operations/versioning"]
+            "pages": ["operations/model-runs", "operations/evals", "operations/experiments", "operations/sidecar", "operations/versioning"]
           },
           {
             "group": "Appendix",

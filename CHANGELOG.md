@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.3.0] - 2026-10-26
+
+### Added
+- A Python sidecar page (`operations/sidecar`): the FastAPI service, its configuration, its container and build script, the Go client and how to add an endpoint. Documents gligabao 0.24.0. Added to the Operations group in the navigation.
+
+### Changed
+- The Building section of Building and versioning mentions `./run_build_sidecar.sh`.
+
 ## [0.2.0] - 2026-10-25
 
 ### Added
