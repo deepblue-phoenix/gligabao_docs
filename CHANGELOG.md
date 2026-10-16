@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.12.0] - 2026-10-29
+
+### Added
+- Modal app lifecycle page: a section "The apps list" for the admin UI's list of the active Modal apps of this system (`SIDECAR_APP_NAME` and `SIDECAR_APP_NAME-<suffix>`), with the per-app buttons Redeploy / Deploy, Last log, Stop and Volumes, plus the new routes (`GET /backends/{name}/apps`, `/backends/{name}/apps/{app}/actions/...`), curl examples and troubleshooting rows. Documents gligabao 0.35.0.
+
+### Changed
+- Modal app lifecycle and Python sidecar pages: the Deploy / Stop / Volumes buttons are described on the app rows instead of the backend line; route tables and the backend-extension note (`apps()`, `app_actions()`) updated.
+
 ## [0.11.0] - 2026-10-28
 
 ### Added

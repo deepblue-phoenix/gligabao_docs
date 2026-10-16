@@ -1,11 +1,11 @@
 ---
 title: "Modal app lifecycle"
-description: "Deploy, watch, cancel and stop the Modal app, and list its volumes, from the sidecar and the admin UI, without the modal CLI."
+description: "List the active Modal apps of this system; deploy, watch, cancel and stop each one, and list their volumes, from the sidecar and the admin UI, without the modal CLI."
 ---
 
-`sidecar/backends/modal_backend.py`, `sidecar/backends/actions.py`, `sidecar/ai_train/deploy_modal.py`, `sidecar/ai_train/stop_modal.py`, `sidecar/ai_train/list_volumes.py`, `internal/api/admin/sidecar.go`, `admin_ui/src/actions.ts`
+`sidecar/backends/modal_backend.py`, `sidecar/backends/actions.py`, `sidecar/ai_train/deploy_modal.py`, `sidecar/ai_train/stop_modal.py`, `sidecar/ai_train/list_volumes.py`, `sidecar/ai_train/list_apps.py`, `internal/api/admin/sidecar.go`, `admin_ui/src/actions.ts`
 
-The training code runs on [Modal](https://modal.com) as an app (`gligabao-train` by default). The [sidecar](/operations/sidecar) is what talks to Modal, and since gligabao 0.34.0 it also manages the app's **lifecycle**: you can see whether the app is deployed, deploy and redeploy it, watch the build live, cancel it, stop the app, and list the volumes it uses, all from the **training** view of the admin UI or over HTTP. None of this needs the `modal` CLI, a login or a `~/.modal.toml`: the sidecar uses the Modal SDK with the tokens in its environment. The CLI commands in [Running on Modal](/training/running) still work and do the same thing; the sidecar is the way to do it from the admin panel, or on a machine that has no CLI (the sidecar container).
+The training code runs on [Modal](https://modal.com) as an app (`gligabao-train` by default). The [sidecar](/operations/sidecar) is what talks to Modal, and since gligabao 0.34.0 it also manages the app's **lifecycle**: you can see the active Modal apps of this system, deploy and redeploy them, watch the build live, cancel it, stop the app, and list the volumes it uses, all from the **training** view of the admin UI or over HTTP. None of this needs the `modal` CLI, a login or a `~/.modal.toml`: the sidecar uses the Modal SDK with the tokens in its environment. The CLI commands in [Running on Modal](/training/running) still work and do the same thing; the sidecar is the way to do it from the admin panel, or on a machine that has no CLI (the sidecar container).
 
 The Go server stays out of it: it only passes the admin UI's requests on to the sidecar (see [the API](#the-api)).
 
@@ -35,7 +35,19 @@ In the **training** view, the *Backends* list shows, for the `modal` backend:
 | `deploy: <stage>…` | A deploy is running (the stage is its current step). |
 | `last deploy failed` / `cancelled` | The last run of the action ended that way; **View log** shows why. |
 
-Next to the badges: **Deploy** (**Redeploy** once the app is deployed), **Stop** (red; only while the app is deployed), **Volumes**, and **View log** / **Last log** once an action has run. The list refreshes every 5 seconds while an action runs, and when you press *Refresh*.
+The deploy-related badges (`app deployed`, `deploy: <stage>…`, `last deploy failed`) now appear on the app's row in the apps list below, not on the backend line.
+
+### The apps list
+
+Under the backend line is the list of the **active Modal apps of this system** (since gligabao 0.35.0), one row per app:
+
+- The app's name, its state (`deployed`, `ephemeral`, `initializing`, or `not deployed`; the tooltip has the app id and creation time) and how many tasks it has running.
+- **Redeploy** (**Deploy** when the app is not deployed), **Last log** (**View log** while an action runs; the log of the last action run on that app), **Stop** (red; only while the app is deployed) and **Volumes**.
+- Badges for an action that is running (`deploy: building images…`) or whose last run `failed` / was `cancelled`.
+
+"Of this system" means the app named by `SIDECAR_APP_NAME` and apps named `SIDECAR_APP_NAME-<suffix>` (for example a `-dev` copy). Other apps of the Modal workspace are neither shown nor touchable. The configured app is always listed, as `not deployed` when it is not up, so that it can be deployed; an app that is stopped (history in Modal) is not shown, unless an action ran on it since the sidecar started.
+
+The list comes from Modal (`sidecar/ai_train/list_apps.py`, the equivalent of `modal app list`, read only) and takes a few seconds; the previous list stays on screen while it loads. It refreshes every 5 seconds while an action runs, and when you press *Refresh*. Every button below acts on its own app: each app has its own deploy and stop actions and its own log, and `deploy` and `stop` exclude each other per app (two apps can deploy at the same time).
 
 ## Deploy
 
@@ -79,7 +91,7 @@ The Stop button is not offered while the app is not deployed, and it never runs 
 
 ## Volumes
 
-**Volumes** opens a table of the Modal volumes the app uses, read from the app's configuration (`config.py`, so the `SIDECAR_VOL_*` settings are respected):
+**Volumes** (on an app's row) opens a table of the Modal volumes the app uses, read from the app's configuration (`config.py`, so the `SIDECAR_VOL_*` settings are respected):
 
 | Column | Meaning |
 |---|---|
@@ -93,7 +105,7 @@ It is read only: nothing is created, changed or deleted, and it works whether or
 
 ## The API
 
-All routes are answered by the sidecar itself (they are not forwarded to the Modal app). `{name}` is the backend (`modal`), `{action}` is `deploy` or `stop`. The Go server passes them on under `/v1/gb/admin/api/sidecar/backends/…` (the same paths after `/backends`), flushing the stream as it arrives; it adds nothing and keeps no state. They are for the admin UI, are only registered when the admin UI is on, and have no authentication of their own.
+All routes are answered by the sidecar itself (they are not forwarded to the Modal app). `{name}` is the backend (`modal`), `{app}` an app of this system and `{action}` is `deploy` or `stop`. The Go server passes them on under `/v1/gb/admin/api/sidecar/backends/…` (the same paths after `/backends`), flushing the stream as it arrives; it adds nothing and keeps no state. They are for the admin UI, are only registered when the admin UI is on, and have no authentication of their own.
 
 | Sidecar route | Meaning |
 |---|---|
@@ -102,6 +114,8 @@ All routes are answered by the sidecar itself (they are not forwarded to the Mod
 | `POST /backends/{name}/actions/{action}/cancel` | Cancel it: `202`, or `409` if it is not running. |
 | `GET /backends/{name}/actions/{action}[?from=<i>]` | The state and the kept log lines with index `>= from`. |
 | `GET /backends/{name}/actions/{action}/events[?from=<i>]` | The SSE stream above. |
+| `GET /backends/{name}/apps` | `{"apps": [{"name", "app_id", "state", "n_running_tasks", "created_at", "active", "configured", "actions"}, ...]}`: the active apps of this system (`actions` is the state of each action; `stop` is left out for an app that is not active). `404` if the backend has none, `502` if they cannot be listed. |
+| `…/backends/{name}/apps/{app}/actions/{action}[/events\|/cancel]` | The same routes as the actions above, for one app (`404` for a name that is not the configured app or `<it>-<suffix>`). The routes without `apps/{app}` act on the configured app. |
 | `GET /backends/{name}/volumes` | `{"volumes": [{"mount_path", "name", "exists", "created_at"?, "entries"?, "error"?}, ...]}`; `404` if the backend has none, `502` if they cannot be listed. |
 
 The state of an action:
@@ -123,11 +137,13 @@ curl -N        http://127.0.0.1:8787/backends/modal/actions/deploy/events    # f
 curl           http://127.0.0.1:8787/backends/modal/actions/deploy           # state and log
 curl -X POST   http://127.0.0.1:8787/backends/modal/actions/deploy/cancel    # cancel
 curl           http://127.0.0.1:8787/backends/modal/volumes
+curl           http://127.0.0.1:8787/backends/modal/apps                                   # the active apps
+curl -X POST   http://127.0.0.1:8787/backends/modal/apps/gligabao-train-dev/actions/deploy  # deploy one of them
 ```
 
 ## In the container
 
-`Dockerfile.sidecar` copies `sidecar/ai_train/` to `/app/ai_train`, next to the sidecar, because that is the code a deploy uploads (and where the three scripts live); it is still not imported by the sidecar process. The scripts run as the image's non-root `sidecar` user, which has no home directory and needs none. Only `modal` from `requirements.txt` is needed to deploy: the heavy ML packages are installed in Modal's images, not in the sidecar's.
+`Dockerfile.sidecar` copies `sidecar/ai_train/` to `/app/ai_train`, next to the sidecar, because that is the code a deploy uploads (and where the four scripts live); it is still not imported by the sidecar process. The scripts run as the image's non-root `sidecar` user, which has no home directory and needs none. Only `modal` from `requirements.txt` is needed to deploy: the heavy ML packages are installed in Modal's images, not in the sidecar's.
 
 ## Troubleshooting
 
@@ -139,13 +155,15 @@ curl           http://127.0.0.1:8787/backends/modal/volumes
 | Deploy ends `failed` about a missing secret | `SIDECAR_HF_SECRET` names a Modal secret that does not exist: create it (`modal secret create`) or unset the variable. |
 | Deploy stays at *starting* for long | Modal is slow to answer or the upload is large; read the log. If it is really stuck, **Cancel run** and try again. |
 | **Stop** is missing | The app is not deployed (nothing to stop). |
+| An app I deployed is not in the list | Its name is not `SIDECAR_APP_NAME` or `SIDECAR_APP_NAME-<suffix>`, or it is stopped. Only active apps of this system are listed. |
+| `Could not list the modal apps` | Modal did not answer within 30 seconds, or rejected the tokens; the message has the reason. The rest of the view still works. |
 | `409` on Deploy or Stop | A run of it, or of the action it excludes, is going: open **View log**, or cancel it. |
 | **Volumes** shows `not created yet` | Normal before the first deploy. |
 | The log is gone after a restart | By design: the log is in the sidecar's memory. The app itself is still in Modal. |
 
 ## Not included
 
-- No authentication: the sidecar and the admin panel trust their network, so keep the sidecar on localhost or the private network and the admin UI off the public internet. Anyone who can reach these routes can deploy or stop the app.
+- No authentication: the sidecar and the admin panel trust their network, so keep the sidecar on localhost or the private network and the admin UI off the public internet. Anyone who can reach these routes can deploy or stop the apps.
 - No scheduling or automatic redeploy: nothing deploys unless someone presses the button or calls the route.
 - No volume management (create, empty, delete) and no log history across restarts.
-- Only the `modal` backend has actions. Another backend gets them by overriding `Backend.actions()` (and `volumes()`); the admin UI draws whatever buttons the backend reports, using each action's `label`, `confirm` and `danger`. See [Python sidecar](/operations/sidecar#backends).
+- Only the `modal` backend has actions. Another backend gets them by overriding `Backend.actions()` (and `apps()`, `app_actions()`, `volumes()`); the admin UI draws whatever buttons the backend reports, using each action's `label`, `confirm` and `danger`. See [Python sidecar](/operations/sidecar#backends).

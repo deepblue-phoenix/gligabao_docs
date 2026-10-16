@@ -33,7 +33,7 @@ To add a backend, implement `Backend.forward` in `backends/` and register it in 
 
 ### Backend actions and Modal lifecycle
 
-Besides forwarding, the sidecar answers a few routes itself, for what an operator does to a backend (`sidecar/backends/actions.py`). The `modal` backend uses them to **manage the Modal app's lifecycle** without the `modal` CLI: `deploy` (the Modal SDK's `app.deploy()` in a subprocess), `stop` (`modal app stop`), `cancel` of a running one, a live log of each run, and a read-only list of the app's volumes. The credentials are the sidecar's `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`; the deployment itself lives in Modal, so it survives sidecar restarts (only the last run's log is kept in memory). The admin UI's training view drives it. How it works, the stages, the log stream, what Stop does to running jobs and troubleshooting are on [Modal app lifecycle](/training/modal).
+Besides forwarding, the sidecar answers a few routes itself, for what an operator does to a backend (`sidecar/backends/actions.py`). The `modal` backend uses them to **manage the Modal app's lifecycle** without the `modal` CLI: `deploy` (the Modal SDK's `app.deploy()` in a subprocess), `stop` (`modal app stop`), `cancel` of a running one, a live log of each run, a read-only list of the **active Modal apps of this system** (the configured app and `<it>-<suffix>` ones), each with its own deploy, stop and log, and a read-only list of the app's volumes. The credentials are the sidecar's `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`; the deployment itself lives in Modal, so it survives sidecar restarts (only the last run's log is kept in memory). The admin UI's training view drives it. How it works, the stages, the log stream, what Stop does to running jobs and troubleshooting are on [Modal app lifecycle](/training/modal).
 
 | Endpoint | Response |
 |---|---|
@@ -42,9 +42,11 @@ Besides forwarding, the sidecar answers a few routes itself, for what an operato
 | `POST /backends/{name}/actions/{action}/cancel` | Stops a running action: SIGINT, then a kill after 10 seconds. `202`, or `409` if it is not running. The run ends as `cancelled`. |
 | `GET /backends/{name}/actions/{action}[?from=<i>]` | The state (`idle`, `running`, `succeeded`, `failed`, `cancelled`; `stage`, `stages`, `started_at`, `finished_at`, `exit_code`, `error`) and the kept log (last 5000 lines, stdout and stderr merged). |
 | `GET /backends/{name}/actions/{action}/events[?from=<i>]` | SSE: `log` and `state` events; ends when the run is over. |
+| `GET /backends/{name}/apps` | `{"apps": [...]}`: the active apps of this system with the state of their actions. `404` if the backend has none, `502` if they cannot be listed. |
+| `…/backends/{name}/apps/{app}/actions/{action}[/events\|/cancel]` | The action routes above for one app (`404` for an app that is not ours). |
 | `GET /backends/{name}/volumes` | `{"volumes": [...]}`: the backend's storage volumes, read only. `404` if it has none, `502` if they cannot be listed. |
 
-The Go server passes them on, unchanged, as `GET /v1/gb/admin/api/sidecar/backends` (the list) and `POST|GET /v1/gb/admin/api/sidecar/backends/{name}/actions/{action}[/events|/cancel]` and `GET .../backends/{name}/volumes`. Because the sidecar has no authentication, keep it on localhost or a private network: anyone who reaches these routes can deploy or stop the app. A new backend gets actions by overriding `Backend.actions()` (and `volumes()`); the admin UI draws the buttons it reports.
+The Go server passes them on, unchanged, as `GET /v1/gb/admin/api/sidecar/backends` (the list) and `POST|GET /v1/gb/admin/api/sidecar/backends/{name}/actions/{action}[/events|/cancel]` `GET .../backends/{name}/volumes`, `GET .../backends/{name}/apps` and `.../backends/{name}/apps/{app}/actions/{action}[/events|/cancel]`. Because the sidecar has no authentication, keep it on localhost or a private network: anyone who reaches these routes can deploy or stop the app. A new backend gets actions by overriding `Backend.actions()` (and `apps()`, `app_actions()`, `volumes()`); the admin UI draws the buttons it reports.
 
 ### Configuration
 
