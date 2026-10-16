@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.6.0] - 2026-10-29
+
+### Added
+- The "Remote training bootstrap" section of the Python sidecar page now covers the full Gemma-4 fine-tuning pipeline: 4B (Unsloth, A10G) and 12B (plain transformers + peft + trl, A100) and why they train differently, the `sync`, `validate`, `train --model-size` and `generate` actions, `modal serve` and the web API endpoints, the per-size images, the dataset, local unit tests, and the new `SIDECAR_VOL_EVAL` and `SIDECAR_VOL_HF_CACHE` settings. Documents gligabao 0.26.0.
+
+### Changed
+- `SIDECAR_GPU` is documented as an optional override (defaults: `a10g` for 4b, `a100` for 12b), not the switch between CPU and GPU. The page intro and "Growing it" steps no longer describe the training as a stub.
+
 ## [0.5.0] - 2026-10-28
 
 ### Added
