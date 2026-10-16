@@ -1,0 +1,100 @@
+---
+title: "Timeseries"
+description: "Attach values over time, such as prices, to the entities and facts gligabao remembers."
+---
+
+Some memories are about something that also has numbers over time. "Apple fell sharply after the earnings miss" is a text; Apple's price around that date is a **timeseries**. gligabao stores both and links them, so the memory is tied to the data behind it.
+
+A series is **not part of the graph**. Its points live in tables of their own, and it is connected to the graph by **anchors** to an artifact, an entity or a fact (edge). This is the same split as for [images](/guides/images). This page is the guide; every field, status code and table is in the [Timeseries API reference](/api-reference/timeseries).
+
+## Three ways to get a series
+
+| Way | When to use it | Where |
+| --- | -------------- | ----- |
+| **Supply it** with `remember` | You have the points when you remember the text | `timeseries.series` in [`POST /v1/gb/remember`](/api-reference/remember) |
+| **Fetch it** from a provider | You want gligabao to find series for the entities of the text | `timeseries.fetch` in `remember`, with [providers](/api-reference/timeseries#providers) your program registers |
+| **Supply it later** | The entities are only known after `remember` returned, a series changes, or it is too big for `remember` | [`POST /v1/gb/timeseries`](/api-reference/timeseries#post-v1gbtimeseries) |
+
+Nothing is fetched or derived by default: `fetch` and `observations` are opt-in because they cost time and LLM calls.
+
+## Supply a series with `remember`
+
+```json
+{
+  "user_id": "u1",
+  "text": "Apple fell sharply after the earnings miss.",
+  "kind": "episode",
+  "reference_time": "2025-01-31T21:00:00Z",
+  "timeseries": {
+    "series": [{
+      "key": "AAPL.close", "name": "Apple close", "unit": "USD",
+      "points": [["2025-01-29T00:00:00Z", 235.1], ["2025-01-30T00:00:00Z", 237.6], ["2025-01-31T00:00:00Z", 222.0]],
+      "anchors": [{"entity": {"name": "Apple", "type": "organization"}}]
+    }]
+  }
+}
+```
+
+- `key` identifies the series in the [dataset](/concepts/datasets). Sending the same key again adds points to it.
+- Points are `[time, value]` pairs: RFC 3339 times, finite numbers, any order.
+- The `anchors` say what the series is about. The entity does not exist when you make the request (it is what the extraction finds in the text), so you name it with a selector, `{name, type}`, and gligabao looks it up once the text has been stored. If the text never named Apple, the entity is created. A series with no `anchors` is anchored to the artifact of the request.
+
+The response has a `series` item per series, with its `id`, the number of points, its [stats](#stats) and the anchors that were stored. See [Anchors](/api-reference/timeseries#anchors) for artifacts, edges, IDs, `role`, `window` and `on_unmatched`.
+
+## Let gligabao fetch it
+
+Register a **provider** when you start the server: a callback that fetches the data, and a description in plain language of when it applies. gligabao holds no provider logic of its own, so credentials, symbols and rate limits stay in your program.
+
+```go
+gligabao.TimeseriesProvider{
+    Name:        "prices",
+    Description: "Daily close of stocks. Use for companies whose shares are publicly traded. Not for people, places or concepts.",
+    QueryFormat: "the ticker symbol, e.g. AAPL",
+    Fetch:       func(ctx context.Context, req gligabao.TimeseriesFetchRequest) ([]gligabao.TimeseriesData, error) { /* ... */ },
+}
+```
+
+Then ask for it in a request:
+
+```json
+{"user_id": "u1", "text": "Apple fell sharply after the earnings miss.", "kind": "episode", "reference_time": "2025-01-31T21:00:00Z",
+ "timeseries": {"fetch": {"providers": ["prices"], "before": "30d", "after": "0"}}}
+```
+
+After the text is stored, an LLM reads the descriptions of the providers and the entities of the text, and decides which provider fetches which entity (Apple to `AAPL`). It prefers to skip an entity it is not sure of. The series is then stored and anchored to the entity and to the artifact it came from.
+
+- The period is **30 days before** the `reference_time` and **nothing after** by default, so a memory never contains the future of its event. Set `after` if you want an event window.
+- A failure while fetching never fails `remember`; it is reported in the response.
+- Write the `Description` carefully: the whole decision rests on it.
+
+The full provider contract (`Name`, `Description`, `QueryFormat`, `Fetch`, validation, limits) is in [Providers](/api-reference/timeseries#providers).
+
+## Stats
+
+Whenever points are written, gligabao computes a summary of **all** the points of the series, in Go (an LLM never does): count, first and last value, min, max, mean, change, percent change, `trend` (`up`, `down` or `flat`) and the `largest_move` between two consecutive points. It is returned with the series and stored with it. See [Stats](/api-reference/timeseries#stats).
+
+## Turn a series into facts
+
+A series is not in the graph, so by default `recall` does not see it. With `timeseries.observations: true`, `remember` writes a short text from the stats of each series it stored, and runs it through the normal pipeline. The text is generated by Go from the numbers, so it only says what they say:
+
+```
+Apple close fell 5.57% in this period, from 235.1 USD on 2025-01-29 to 222 USD on 2025-01-31.
+```
+
+Its facts reach the graph like any fact (bi-temporal, deduplicated, embedded), and the stored `series_observation` artifact links them back to the series. Observations are opt-in, at most 10 per request. See [Observations](/api-reference/timeseries#observations).
+
+## Read a series back
+
+- `GET /v1/gb/timeseries` lists the dataset's series, without points.
+- `GET /v1/gb/timeseries/{id}` returns one series with its points, between optional `from` and `to`.
+
+See [Reading](/api-reference/timeseries#reading).
+
+## Things to know
+
+- **A supplied series is never clipped.** If it runs past the `reference_time`, the memory contains the future of the event. Clip it before sending if that matters. Fetched series are clipped to their period.
+- **`recall` does not use series yet**, and series are not embedded.
+- A series has at most 100,000 points per request; send more in several requests.
+- Times are UTC, and `unit` and `frequency` are labels.
+
+The rest is in [Limitations](/api-reference/timeseries#limitations). The reasoning behind the design is in the [Timeseries design proposal](/appendix/timeseries-design).

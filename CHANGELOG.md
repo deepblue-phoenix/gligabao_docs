@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.2.0] - 2026-10-25
+
+### Added
+- A Timeseries guide (`guides/timeseries`): supplying, fetching, stats, observations and reading series, linking to the API reference for details.
+
+### Changed
+- The home page Timeseries card now links to the guide; the API reference links to it too.
+
 ## [0.1.0] - 2026-10-24
 
 ### Added

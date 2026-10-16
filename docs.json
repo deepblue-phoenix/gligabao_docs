@@ -27,7 +27,7 @@
           },
           {
             "group": "Guides",
-            "pages": ["guides/chunking", "guides/images", "guides/web-search", "guides/vectors"]
+            "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/vectors"]
           }
         ]
       },
