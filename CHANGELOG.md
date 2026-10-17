@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.15.0] - 2026-11-01
+
+### Added
+- Modal app lifecycle page: a **Warm inference containers** section (`/training/modal#warm-inference-containers`): the loaded model stays in the GPU container, which stays up for `SIDECAR_INFER_IDLE_TIMEOUT_S` (300 seconds by default) after its last request; one model per container; the **Stop inference** button and its `stop_inference` action; how the containers are found (the `<app name>-inference` Modal Dict); redeploying after changing the timeout. Also the `inference` list of the apps endpoint, the warm-containers badge of the apps list, and troubleshooting rows. Documents gligabao 0.39.0.
+- Running on Modal: the `SIDECAR_INFER_IDLE_TIMEOUT_S` setting.
+
+### Changed
+- Trained models page and sidecar API page: a request no longer loads the model every time (only a cold one does); `POST /infer/query` answers with `cold_start` and `load_seconds`, and a failing reload of the models volume no longer fails the request.
+
 ## [0.14.0] - 2026-10-31
 
 ### Added
