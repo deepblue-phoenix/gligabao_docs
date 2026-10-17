@@ -55,8 +55,8 @@ modal run app.py --action sync                     # upload finetune_data/*.json
 modal run app.py --action validate                 # check the remote dataset
 modal run app.py --action train --train-steps 100 --model-size 4b     # 4b on A10G, 12b on A100
 modal run app.py --action train --dataset my.jsonl                    # train on another file of the data volume
-modal run app.py --action generate --model-size 4b --prompt "..."     # run the fine-tuned model (the legacy adapter)
-modal run app.py --action generate --model-path trained/<job id> --prompt "..."   # run a trained model
+modal run app.py --action infer --model-size 4b --prompt "..."     # run the fine-tuned model (the legacy adapter)
+modal run app.py --action infer --model-path trained/<job id> --prompt "..."   # run a trained model
 modal serve app.py                                 # web API in dev mode (`modal deploy app.py` to persist)
 ```
 

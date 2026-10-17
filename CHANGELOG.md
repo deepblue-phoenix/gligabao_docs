@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.17.0] - 2026-10-22
+
+### Added
+- Modal app lifecycle page: a **Cold and warm starts** section (`/training/modal#cold-and-warm-starts`): when a request is cold or warm, what happens in the GPU inference container on a cold request step by step (container start, models volume reload, cache check, adapter lookup, 4-bit load of the base model from the HF cache or a first download from Hugging Face, adapter attach, generation), what `load_seconds` includes, how to read the numbers in the admin UI's request history, and how to get fewer cold requests. Plus a troubleshooting row for slow warm requests. Documents gligabao 0.46.0.
+
+### Changed
+- Trained models page and sidecar API page: the answer of an inference has `input_tokens`, `output_tokens`, `cold_start` and `load_seconds`; the admin UI's history shows cold or warm, the model load time and the token counts for each request; the endpoint table describes the stored request. Links to the new section.
+- Modal, trained models and running pages: the inference functions are named `infer`, `infer_4b`, `infer_12b` (as of gligabao 0.41.1), also in `modal run app.py --action infer`.
+
 ## [0.16.1] - 2026-10-20
 
 ### Changed
