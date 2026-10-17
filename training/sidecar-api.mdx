@@ -34,7 +34,7 @@ curl -X POST $URL/training/job_start -H "Content-Type: application/json" \
 
 ## Progress events
 
-The training run appends one JSON object per event to `training_progress_<job_id>.jsonl` on the progress volume (old files are kept). There are two types; a line without a `type` (written by older versions) is a progress event.
+The training run appends one JSON object per event to the job's **event log**: entries in a Modal Dict named `<SIDECAR_APP_NAME>-events`, which drops each entry 7 days after its last use (the Go database is the permanent record). There is no volume, commit or reload. An event is one request to the Dict, tried again if it fails; a `progress` or `log` event that still fails is skipped, a `status` event that fails raises. An event without a `type` is a progress event.
 
 Status events, `{"type": "status", "status": ..., "timestamp": ...}`:
 
@@ -59,9 +59,7 @@ Status events, `{"type": "status", "status": ..., "timestamp": ...}`:
 
 ## `POST /training/job_cancel`
 
-Body `{"job_id": ...}`. Asks the job to stop: the web container writes `training_progress_<job_id>.stop` on the progress volume, and the training container looks for it between steps (at most every 2 seconds) and between the stages of its setup. It then ends the job with a `cancelled` event, without saving the adapters. So the stop takes effect at the next step, or, during the model load, when the load is done; it is not instant. Answers `200 {"job_id": ..., "status": "stopping"}`, `400` for a bad `job_id`, `404` for a job with no progress file and `409` for one that is over already. Only the training container writes to the progress file, as two containers writing one file would overwrite each other's commits.
-
-The training container commits the volume after every write, and the web container reloads it on each poll, because the web container is long-lived and would otherwise show a stale view.
+Body `{"job_id": ...}`. Asks the job to stop: the web container sets the job's stop flag in the Dict, and the training container looks at it between steps (at most every 2 seconds) and between the stages of its setup. It then ends the job with a `cancelled` event, without saving the adapters. So the stop takes effect at the next step, or, during the model load, when the load is done; it is not instant. Answers `200 {"job_id": ..., "status": "stopping"}`, `400` for a bad `job_id`, `404` for an unknown job (one started through `job_start` is known at once, before its container runs) and `409` for one that is over already. The web container writes no events here.
 
 ## `GET /training/job_events`
 
@@ -73,11 +71,13 @@ event: progress
 data: {"type":"progress","step":20,"loss":1.234,"learning_rate":0.0002,"epoch":0.3,"timestamp":1792169586.9,"elapsed_seconds":42.1}
 ```
 
-`id` is the event's index in the progress file, `event` its type. While nothing new arrives, `: keepalive` comment lines are sent. The sidecar looks for new events every 2 seconds. The stream ends after the `completed` or `failed` event, or after 5 minutes whatever happened; a reader that wants more reconnects with `from=<last id + 1>`. If the job has no file yet (it is still waiting for a GPU) the stream just waits. The Go client reads it with `StreamTrainingJobEvents`, see [Training progress](/training/jobs#training-progress).
+`id` is the event's index in the event log, `event` its type. While nothing new arrives, `: keepalive` comment lines are sent. The web container looks for new events every second. The stream ends after the `completed`, `failed` or `cancelled` event, or after 5 minutes whatever happened; a reader that wants more reconnects with `from=<last id + 1>`, and gets every event it missed, however long it was away (within the 7 days). If the job has no events yet (it is still waiting for a GPU) the stream just waits.
+
+**Watchdog.** A container that is killed (out of memory, a timeout) cannot report its end. While a stream is idle, every 15 seconds the web container asks Modal about the job's call (its id is stored by `job_start`); if the call is over and the log has no final event, it writes a `failed` event with Modal's error, and the stream delivers it. The Go monitor therefore learns of such a failure at once, not after its 3 hour limit. The Go client reads it with `StreamTrainingJobEvents`, see [Training progress](/training/jobs#training-progress).
 
 ## `GET /training/job_progress`
 
-`[?job_id=<id>]`: the events of that job's progress file, or, without `job_id`, of the most recently modified one, as `{"progress": [...]}` (an empty list when there is none). Unlike the stream it answers once with everything so far. There is no Go client method for it; the Go server uses the stream.
+`?job_id=<id>` (`400` without a valid one): all the events of that job's event log so far, as `{"progress": [...]}` (an empty list when there are none). Until 0.44.0 it also answered without `job_id` with the newest job. Unlike the stream it answers once with everything so far. There is no Go client method for it; the Go server uses the stream.
 
 ## `POST /infer/query`
 

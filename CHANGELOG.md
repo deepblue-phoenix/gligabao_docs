@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.16.1] - 2026-10-20
+
+### Changed
+- Training pages (overview, running, jobs, sidecar API, Modal, trained models): sync with gligabao 0.44.0. Training progress now goes through an event log in a Modal Dict instead of the progress volume (no `/progress` volume, no `SIDECAR_VOL_PROGRESS`); a reader that was offline resumes with `from=<last id + 1>` and gets the events it missed; the new watchdog reports a job whose container died as `failed`; `GET /training/job_progress` needs `job_id`.
+
 ## [0.16.0] - 2026-11-02
 
 ### Added

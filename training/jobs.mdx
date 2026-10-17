@@ -13,7 +13,7 @@ The sidecar reports a started job as a `TrainingJob`; the Go client decodes the 
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `job_id` | string | The sidecar's ID of the job; it names the job's progress file. Never empty: the Go client returns an error if the sidecar sends none. |
+| `job_id` | string | The sidecar's ID of the job; it names the job's event log. Never empty: the Go client returns an error if the sidecar sends none. |
 | `provider_job_id` | string | The compute provider's ID of the spawned call (for the provider's dashboard). Optional. |
 | `status` | string | What the sidecar reports when the job starts: `started`. |
 | `model_size` | string | `4b` or `12b`. |
@@ -138,7 +138,7 @@ One row per training job started. Created with the rest of the schema, on both S
 | Column | Meaning |
 | --- | --- |
 | `id` | The record. |
-| `job_id` | The sidecar's job ID (names the progress file there). Indexed, not unique. |
+| `job_id` | The sidecar's job ID (names the event log there). Indexed, not unique. |
 | `provider_job_id` | The compute provider's ID of the call. Empty if the sidecar did not send one. |
 | `status` | `started` when the sidecar reports the job started, then the job's status events: `running`, `training`, and finally `completed`, `failed` or `cancelled` (stopped on request). |
 | `model_size` | `4b` or `12b`. |
@@ -178,7 +178,7 @@ One row per event the sidecar reported for a job, so a job's feed and loss graph
 | Column | Meaning |
 | --- | --- |
 | `run_id` | The job run (`gb_training_job_runs.id`); the rows are deleted with it. |
-| `seq` | The event's index in the sidecar's progress file. `(run_id, seq)` is the primary key, so an event the stream replays is stored once, and a reconnect resumes after the highest `seq`. |
+| `seq` | The event's index in the sidecar's event log. `(run_id, seq)` is the primary key, so an event the stream replays is stored once, and a reconnect resumes after the highest `seq`. |
 | `type` | `status` or `progress`. |
 | `data` | The event as JSON. |
 | `created_at` | When the row was made. |

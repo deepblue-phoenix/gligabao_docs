@@ -50,9 +50,9 @@ Details: [Training jobs](/training/jobs).
 ## How progress comes back
 
 ```
-training container ── appends events ──► /progress/training_progress_<job_id>.jsonl   (provider volume)
+training container ── appends events ──► event log of the job   (a Modal Dict, kept 7 days)
                                                            │
-Modal web API ◄── GET /training/job_events (tails the file) ─┘
+Modal web API ◄── GET /training/job_events?from=N (reads the log) ─┘
         │  SSE
         ▼
 sidecar (proxies the stream, as it arrives)
@@ -64,7 +64,7 @@ Go server (training monitor): stores each event, updates the job's row
 clients, admin UI: job list, event feed, loss graph
 ```
 
-The events are status changes (`running`, `training`, `completed` with the final loss, `failed` with the error) and one progress event per trainer log (step, loss, learning rate, epoch). Because the Go server stores them, the loss graph of a finished job is still there after the sidecar's files are gone, and the Go server resumes following unfinished jobs after a restart. See [Training progress](/training/jobs#training-progress).
+The events are status changes (`running`, `training`, `completed` with the final loss, `failed` with the error) and one progress event per trainer log (step, loss, learning rate, epoch). Because the Go server stores them, the loss graph of a finished job is still there after the sidecar's log is gone, and the Go server resumes following unfinished jobs after a restart. The log keeps every event of a job, so a Go server or sidecar that was offline while the job trained gets the events it missed when it reconnects (`from=<last id + 1>`). See [Training progress](/training/jobs#training-progress).
 
 ## A typical workflow
 

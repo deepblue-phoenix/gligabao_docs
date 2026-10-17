@@ -27,7 +27,8 @@ sidecar/ai_train/
     dataset.py                # store / sync / validate datasets on the data volume (internal)
     training_common.py        # dataset loading, SFTConfig, adapter saving
     progress.py               # Trainer callback writing live progress events
-    progress_events.py        # the progress file format: write/read events (no heavy imports)
+    progress_events.py        # the events of a job: write helpers, stop flag (no heavy imports)
+    event_log.py              # the job's event log on the provider's key-value store (Modal Dict)
     model_load.py, model_train.py            # training: 4B and 12B via Unsloth
     model_load_infer.py       # inference loading: base model 4-bit + peft adapter, no Unsloth
     inference.py              # generate with a trained adapter (model_path picks it)
@@ -79,7 +80,6 @@ These are the settings of the Modal app, in `config.py`; they can be overridden 
 | `SIDECAR_HF_SECRET` | *(empty)* | Name of a provider secret with `HF_TOKEN`. Empty means no secret is attached. |
 | `SIDECAR_VOL_DATA` | `gligabao-train-data` | Volume mounted at `/data` (datasets). |
 | `SIDECAR_VOL_MODELS` | `gligabao-train-models` | Volume mounted at `/models` (the trained models: one directory `trained/<job_id>` per completed job; see [Trained models](/training/trained-models#where-the-weights-are-saved)). |
-| `SIDECAR_VOL_PROGRESS` | `gligabao-train-progress` | Volume mounted at `/progress` (training progress). |
 | `SIDECAR_VOL_EVAL` | `gligabao-train-eval` | Volume mounted at `/eval` (eval examples from the web API). |
 | `SIDECAR_VOL_HF_CACHE` | `gligabao-train-hf-cache` | Volume mounted at `/root/.cache/huggingface` (base-model cache, avoids re-downloads). |
 
