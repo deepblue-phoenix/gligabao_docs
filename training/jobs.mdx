@@ -97,6 +97,9 @@ Every job the sidecar reports as started is a new row, even if an identical one 
 | --- | --- |
 | `POST /v1/gb/training/jobs/{id}/stop[?db=<name>]` | Asks the sidecar to stop the job run `{id}` (the **Stop job** button of the admin UI). `202 {"id", "status": "stopping"}`; the job ends at its next step with a `cancelled` event and the row follows like for any other end. `404` for an unknown run, `409` for one that is over already, `502` if the sidecar fails, `503` without a sidecar. |
 | `GET /v1/gb/training/jobs[?db=<name>][&limit=<n>]` | `{"jobs": [...]}`: the rows of `gb_training_job_runs`, newest first. `limit` defaults to 50, at most 500 (`400` if it is not a positive integer). |
+| `GET /v1/gb/training/models[?db=<name>][&limit=<n>]` | `{"models": [...]}`: the rows of `gb_trained_models`, newest first (default 100, at most 500). See [Trained models](/training/trained-models). |
+| `GET /v1/gb/training/models/{id}[?db=<name>]` | One trained model; `404` if unknown. |
+| `POST /v1/gb/training/models/{id}/infer[?db=<name>]` | Body `{"prompt", "max_tokens"?, "temperature"?}`: runs the prompt through that model on the sidecar and answers `{"model_id", "response"}`. See [Trained models](/training/trained-models#how-inference-runs). |
 | `GET /v1/gb/training/datasets[?db=<name>]` | `{"datasets": [...]}`: the training datasets of the database (`filename`, `size_bytes`, `num_records`, `sha256`, `status`, `updated_at`, `synced_at`), latest first. Read from the database only: no sidecar needed. Uploading is `POST /v1/gb/training/datasets`; see [Training datasets](/training/datasets#managing-datasets-go-server). |
 
 ## Training progress
@@ -148,6 +151,26 @@ One row per training job started. Created with the rest of the schema, on both S
 | `created_at` | When the row was made. |
 | `finished_at` | When the job completed, failed or was cancelled. Null while it runs. |
 
+## Trained models
+
+A trained model is a set of weights: for the LoRA fine-tuning the sidecar does, the few files of an adapter. Every job that **completes** makes a **new** trained model, a row of the `gb_trained_models` table, so you can train many models of the same type with other data, steps or size, and each stays available to run inference on. A cancelled or failed job saves nothing. The job saves its adapter in `/models/trained/<job_id>` of the models volume and reports it in its `completed` event; the monitor records it. Where the files are, how the row is made, how inference picks a model and how to add an inference endpoint are on [Trained models](/training/trained-models). The **training** view of the admin UI lists the models; clicking one shows its settings and files and a form that runs a prompt through it.
+
+| Column of `gb_trained_models` | Meaning |
+| --- | --- |
+| `id` | The record. |
+| `name` | For lists; made from the size, dataset, steps and the start of the job id (`4b-mine.jsonl-100steps-1a2b3c4d`). |
+| `run_id` | The job run (`gb_training_job_runs.id`) that made it; null if that run was deleted. |
+| `job_id` | The sidecar's job ID. Unique: a job makes one model. |
+| `base_model`, `model_size` | The model that was fine-tuned (e.g. `google/gemma-4-E4B-it`) and its size, `4b` or `12b`. Inference needs the size to pick the hardware. |
+| `dataset`, `dataset_sha256`, `num_examples` | The dataset file name (empty for the sidecar's default), the digest of the file the job read (the file of that name can be uploaded again with other content) and its number of examples. |
+| `num_train_steps`, `final_loss` | How long the job trained and its mean training loss. |
+| `params` | JSON object: the other training settings. |
+| `path` | The directory of the weights on the models volume, relative to it (`trained/<job id>`): the `model_path` of inference. |
+| `files`, `size_bytes` | JSON array of `{path, size_bytes, sha256}` for the files in that directory, and their total size. |
+| `created_at` | When the row was made. |
+
+From Go (`relational` package): `RecordTrainedModel(ctx, db, model)` stores a `TrainedModel` and returns its ID and whether it is new (a job that already has a model keeps it); `GetTrainedModel(ctx, db, id)` reads one, or returns `relational.ErrNotFound`; `ListTrainedModels(ctx, db, limit)` lists them, newest first. The Go client has `Infer(ctx, sidecar.InferRequest)`.
+
 ## The `gb_training_job_events` table
 
 One row per event the sidecar reported for a job, so a job's feed and loss graph can be shown after it finished.
@@ -190,6 +213,6 @@ err = c.StreamTrainingJobEvents(ctx, job.JobID, 0, func(ev sidecar.TrainingEvent
 })
 ```
 
-`CancelTrainingJob(ctx, jobID)` calls `POST /training/job_cancel` (a `*sidecar.StatusError` with 404 or 409 for an unknown or finished job). `StartTrainingJob` returns an error for a negative `NumTrainSteps`, for any status other than 200 from the sidecar (a `*sidecar.StatusError`), for a body that is not the expected JSON, and for an answer without a `job_id`. `StreamTrainingJobEvents` returns nil when the sidecar ends the stream (after the job's last event, or after the sidecar's time limit; reconnect with `from` = the last `Seq` + 1), `fn`'s error if `fn` fails, the context's error when it is done, and an error for a failed connection, a bad status or an event that is not JSON. The optional fields of `sidecar.TrainingEvent` are pointers, nil when the event does not have them. There are no dataset calls: the sidecar has no dataset endpoints, and a dataset travels in `DatasetContent` (see [Training datasets](/training/datasets#how-a-dataset-reaches-the-sidecar)).
+`Infer(ctx, sidecar.InferRequest{Prompt, ModelSize, ModelPath, ...})` calls `POST /infer/query` and waits as long as the context allows (a cold start takes minutes); a generation that fails on the sidecar is a `*sidecar.InferError`. `CancelTrainingJob(ctx, jobID)` calls `POST /training/job_cancel` (a `*sidecar.StatusError` with 404 or 409 for an unknown or finished job). `StartTrainingJob` returns an error for a negative `NumTrainSteps`, for any status other than 200 from the sidecar (a `*sidecar.StatusError`), for a body that is not the expected JSON, and for an answer without a `job_id`. `StreamTrainingJobEvents` returns nil when the sidecar ends the stream (after the job's last event, or after the sidecar's time limit; reconnect with `from` = the last `Seq` + 1), `fn`'s error if `fn` fails, the context's error when it is done, and an error for a failed connection, a bad status or an event that is not JSON. The optional fields of `sidecar.TrainingEvent` are pointers, nil when the event does not have them. There are no dataset calls: the sidecar has no dataset endpoints, and a dataset travels in `DatasetContent` (see [Training datasets](/training/datasets#how-a-dataset-reaches-the-sidecar)).
 
 The tests (`internal/sidecar/*_test.go`, `internal/api/training/*_test.go`) run against an `httptest` server and a fake sidecar, so they need neither Python nor a cloud account.

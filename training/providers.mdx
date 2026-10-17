@@ -24,3 +24,4 @@ To add a provider (e.g. AWS): implement `Provider` in `providers/aws_provider.py
 1. Add a dependency: put it in the requirements file of the image that needs it (an image is rebuilt only when its file changes; code changes do not rebuild it).
 2. Add a model size: an entry in `ai_train_core/model_config.py`, a train/generate function pair in `app.py`, and a pipeline module if it needs a new backend.
 3. Add another remote function: declare it in `app.py` with a `FunctionSpec` and a matching action in `main`.
+4. Add an inference endpoint: a Go endpoint over trained models, a sidecar route, or a new GPU generation function; see [Adding an inference endpoint](/training/trained-models#adding-an-inference-endpoint).

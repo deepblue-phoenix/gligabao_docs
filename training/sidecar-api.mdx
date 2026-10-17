@@ -14,7 +14,7 @@ What the sidecar adds: `GET /health` (answered by the sidecar itself, not forwar
 | `POST /training/job_start` | yes | Start a training job. |
 | `GET /training/job_progress` | no | The progress entries of a job, as one JSON answer. |
 | `GET /training/job_events` | yes | The events of a job as Server-Sent Events. |
-| `POST /infer/query` | no | Generate with the fine-tuned adapter. |
+| `POST /infer/query` | no | Generate with a fine-tuned adapter (`model_path` picks it). |
 | `POST /evals/add_to_dataset` | no | Add an eval example. |
 | `GET /evals/get_dataset_count` | no | Count the eval examples. |
 | `GET /healthz` | no | Liveness of the Modal web API: `{"status": "ok", "timestamp": ...}`. Not a sidecar route (the sidecar's own is `GET /health`), so it is not reachable through the sidecar. |
@@ -42,7 +42,7 @@ Status events, `{"type": "status", "status": ..., "timestamp": ...}`:
 | --- | --- | --- |
 | `running` | The training container started. | `model_size`, `num_train_steps` |
 | `training` | The trainer began. | `max_steps` |
-| `completed` | Training finished and the adapter was saved. | `final_loss` |
+| `completed` | Training finished and the adapter was saved. | `final_loss`, `model` (the saved weights, see [Trained models](/training/trained-models)) |
 | `failed` | Anything raised (a bad dataset, out of memory, ...). | `error` |
 | `cancelled` | The job was asked to stop (see `POST /training/job_cancel` below). | `error` (where it stopped) |
 
@@ -81,7 +81,7 @@ data: {"type":"progress","step":20,"loss":1.234,"learning_rate":0.0002,"epoch":0
 
 ## `POST /infer/query`
 
-Body `{prompt, max_tokens?, temperature?, model_size?}` (defaults `1024`, `0.7` and `4b`): runs the fine-tuned adapter of that size and answers with the result of the inference function. `400` for an invalid `model_size`. The adapter is read from the models volume, which is reloaded first so a newly trained one is seen.
+Body `{prompt, max_tokens?, temperature?, model_size?, model_path?}` (defaults `1024`, `0.7` and `4b`): runs a fine-tuned adapter and answers with the result of the inference function. `model_path` (`trained/<job id>`, the `path` of a [trained model](/training/trained-models)) picks the weights; `model_size` must be the size they were trained for. Without `model_path` the adapter that versions before 0.38.0 saved per size (`/models/finetuned_model_<size>`) is used. `400` for an invalid `model_size` or `model_path`; an adapter that is not on the volume answers `{"error": ...}`. The models volume is reloaded first so a newly trained adapter is seen.
 
 ## Eval examples
 

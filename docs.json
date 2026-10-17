@@ -57,7 +57,7 @@
           },
           {
             "group": "Jobs and data",
-            "pages": ["training/jobs", "training/datasets", "training/models"]
+            "pages": ["training/jobs", "training/datasets", "training/models", "training/trained-models"]
           },
           {
             "group": "Internals",

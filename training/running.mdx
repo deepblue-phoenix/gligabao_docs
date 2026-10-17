@@ -28,7 +28,8 @@ sidecar/ai_train/
     progress.py               # Trainer callback writing live progress events
     progress_events.py        # the progress file format: write/read events (no heavy imports)
     model_load.py, model_train.py            # 4B and 12B via Unsloth
-    inference.py              # generate with the trained adapter
+    inference.py              # generate with a trained adapter (model_path picks it)
+    trained_model.py          # where a job's weights are saved, how they are described, model_path validation
     bootstrap.py              # ping + train dispatch by backend
   api/
     api.py                    # FastAPI app (training jobs, progress, generate, eval; no dataset endpoints)
@@ -51,7 +52,8 @@ modal run app.py --action sync                     # upload finetune_data/*.json
 modal run app.py --action validate                 # check the remote dataset
 modal run app.py --action train --train-steps 100 --model-size 4b     # 4b on A10G, 12b on A100
 modal run app.py --action train --dataset my.jsonl                    # train on another file of the data volume
-modal run app.py --action generate --model-size 4b --prompt "..."     # run the fine-tuned model
+modal run app.py --action generate --model-size 4b --prompt "..."     # run the fine-tuned model (the legacy adapter)
+modal run app.py --action generate --model-path trained/<job id> --prompt "..."   # run a trained model
 modal serve app.py                                 # web API in dev mode (`modal deploy app.py` to persist)
 ```
 
@@ -73,7 +75,7 @@ These are the settings of the Modal app, in `config.py`; they can be overridden 
 | `SIDECAR_TRAIN_TIMEOUT_S` | `7200` | Timeout of the train jobs. |
 | `SIDECAR_HF_SECRET` | *(empty)* | Name of a provider secret with `HF_TOKEN`. Empty means no secret is attached. |
 | `SIDECAR_VOL_DATA` | `gligabao-train-data` | Volume mounted at `/data` (datasets). |
-| `SIDECAR_VOL_MODELS` | `gligabao-train-models` | Volume mounted at `/models` (fine-tuned adapters). |
+| `SIDECAR_VOL_MODELS` | `gligabao-train-models` | Volume mounted at `/models` (the trained models: one directory `trained/<job_id>` per completed job; see [Trained models](/training/trained-models#where-the-weights-are-saved)). |
 | `SIDECAR_VOL_PROGRESS` | `gligabao-train-progress` | Volume mounted at `/progress` (training progress). |
 | `SIDECAR_VOL_EVAL` | `gligabao-train-eval` | Volume mounted at `/eval` (eval examples from the web API). |
 | `SIDECAR_VOL_HF_CACHE` | `gligabao-train-hf-cache` | Volume mounted at `/root/.cache/huggingface` (base-model cache, avoids re-downloads). |

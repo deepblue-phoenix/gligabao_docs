@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.14.0] - 2026-10-31
+
+### Added
+- A **Trained models** page (`/training/trained-models`, in Jobs and data): where a job's weights are saved (the models volume, `trained/<job_id>`, what is in it, what is not: the base model, who writes and reads it, how to inspect, fetch and remove it), how a completed job becomes a `gb_trained_models` row, how an inference request reaches the weights (and its limits: the model is loaded on every request, 600 second Modal timeout, `model_size` must match), and how to add an inference endpoint (a Go endpoint, a sidecar route, a GPU generation function).
+- Training pages: a "Trained models" section (`/training/jobs#trained-models`) for the new `gb_trained_models` table (one row per completed job: the weights it saved, with the dataset, steps, settings and files), the `model` of the `completed` event, the endpoints `GET /v1/gb/training/models`, `GET /v1/gb/training/models/{id}` and `POST /v1/gb/training/models/{id}/infer`, and the `Infer` Go client call. Documents gligabao 0.38.0.
+
+### Changed
+- Training pages: each job saves its adapter in `/models/trained/<job_id>` instead of overwriting `/models/finetuned_model_<size>`; `POST /infer/query` takes `model_path` to pick the weights.
+
 ## [0.13.0] - 2026-10-30
 
 ### Added

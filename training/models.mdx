@@ -25,7 +25,7 @@ All the numbers are in `ai_train_core/model_config.py` (pure data).
 
 ## Training backend
 
-`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture and `google/gemma-4-12B-it` (12B) the newer `gemma4_unified` one. Both train and serve through Unsloth (2026.10.x, `transformers<=5.17`) in one shared image (`requirements_train.txt`). Both sizes save LoRA adapters to `/models/finetuned_model_<size>`, so the two sizes never overwrite each other.
+`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture and `google/gemma-4-12B-it` (12B) the newer `gemma4_unified` one. Both train and serve through Unsloth (2026.10.x, `transformers<=5.17`) in one shared image (`requirements_train.txt`). Every job saves its LoRA adapter in a directory of its own, `/models/trained/<job_id>`, so no job (of either size) overwrites an earlier model; each completed job is a [trained model](/training/trained-models). Only the adapter is saved: the base model stays in the Hugging Face cache volume and is shared by all jobs, and inference needs `model_size` to match the size the adapter was trained for.
 
 | Size | Image requirements | Code |
 | --- | --- | --- |
