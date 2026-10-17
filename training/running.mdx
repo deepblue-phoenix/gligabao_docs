@@ -14,7 +14,8 @@ sidecar/ai_train/
   app.py                      # declares the remote functions + CLI entrypoint (provider-neutral)
   config.py                   # TrainConfig, overridable by env vars
   training_data.py            # local path of the dataset
-  requirements_train.txt      # Unsloth stack (4B and 12B image)
+  requirements_train.txt      # training image (Unsloth stack; 4B and 12B)
+  requirements_infer.txt      # inference-only image (transformers + peft + bitsandbytes; no Unsloth)
   requirements_web.txt        # web API image
   finetune_data/              # generate_dataset.py + the 325-example tool-calling dataset
   docs/                       # MODEL_SIZES, TRAINING_DATA_FORMAT, tokenizers_and_processors
@@ -27,7 +28,8 @@ sidecar/ai_train/
     training_common.py        # dataset loading, SFTConfig, adapter saving
     progress.py               # Trainer callback writing live progress events
     progress_events.py        # the progress file format: write/read events (no heavy imports)
-    model_load.py, model_train.py            # 4B and 12B via Unsloth
+    model_load.py, model_train.py            # training: 4B and 12B via Unsloth
+    model_load_infer.py       # inference loading: base model 4-bit + peft adapter, no Unsloth
     inference.py              # generate with a trained adapter (model_path picks it)
     trained_model.py          # where a job's weights are saved, how they are described, model_path validation
     bootstrap.py              # ping + train dispatch by backend

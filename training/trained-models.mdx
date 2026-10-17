@@ -52,8 +52,8 @@ client / admin UI ── POST /v1/gb/training/models/{id}/infer ──► Go ser
                           generate (CPU router, app.py) ─► generate_4b / generate_12b (GPU function of that size)
                                                    │  inference.generate_response
                                                    ▼
-                          reload the models volume ─► resolve_model_dir("trained/<job_id>") ─► Unsloth loads the
-                          adapter directory (and the base model it names) ─► generate ─► {"response", …}
+                          reload the models volume ─► resolve_model_dir("trained/<job_id>") ─► transformers loads the
+                          base model (4-bit) and peft attaches the adapter ─► generate ─► {"response", …}
 ```
 
 - **`model_path`** is `trained/<job_id>` and nothing else: the web API refuses anything with another shape (`400`), and `resolve_model_dir` checks again inside the container, so a path cannot leave the `trained/` directory. A directory without `adapter_config.json` is a "No trained model at …" error. Without `model_path` the legacy `finetuned_model_<size>` adapter is used.
@@ -78,7 +78,7 @@ There are three layers, and a new endpoint touches one or more of them. Redeploy
    - add the Go client method (step 1) and a test in `ApiTest` (`test_ai_train_core.py`) with a fake in place of the function.
 3. **A new generation function** (another GPU function, e.g. another decoding mode or model type):
    - put the logic in `ai_train_core/inference.py` (heavy imports inside the function; `ai_train_core` never imports a provider SDK) and resolve any path with `resolve_model_dir`;
-   - register it in `app.py` with `@provider.function(FunctionSpec(image=UNSLOTH_IMAGE, gpu=CONFIG.gpu_for(size), timeout_s=600, volumes=INFER_VOLS, secrets=secrets))`: the volumes must include the models and HF cache volumes, and the function must reload the models volume before it reads;
+   - register it in `app.py` with `@provider.function(FunctionSpec(image=INFER_IMAGE, gpu=CONFIG.gpu_for(size), timeout_s=600, volumes=INFER_VOLS, secrets=secrets))`: the volumes must include the models and HF cache volumes, and the function must reload the models volume before it reads;
    - route to it from a CPU function like `generate`, which picks the function by `model_size`.
 
 A different kind of weights (another model size, or a trainer that saves something other than a LoRA adapter) also needs (see [Providers and extending](/training/providers)) its own `describe` result and loader; the row's `path` and `files` already hold any set of files under `trained/<job_id>`.

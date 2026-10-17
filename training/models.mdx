@@ -14,7 +14,8 @@ Two sizes can be trained, chosen per job with `model_size` (`4b` or `12b`).
 | Base model | `google/gemma-4-E4B-it` | `google/gemma-4-12B-it` |
 | Parameters | 4 billion | 12 billion |
 | Trainable parameters (LoRA r=16) | about 60M (1.5%) | about 180M (1.5%) |
-| Backend | Unsloth | Unsloth |
+| Backend (training) | Unsloth | Unsloth |
+| Backend (inference) | transformers + peft | transformers + peft |
 | Default GPU | A10G (24 GB) | A100 (40 or 80 GB) |
 | Batch size × gradient accumulation | 2 × 4 | 1 × 8 |
 | Effective batch size | 8 | 8 |
@@ -25,12 +26,27 @@ All the numbers are in `ai_train_core/model_config.py` (pure data).
 
 ## Training backend
 
-`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture and `google/gemma-4-12B-it` (12B) the newer `gemma4_unified` one. Both train and serve through Unsloth (2026.10.x, `transformers<=5.17`) in one shared image (`requirements_train.txt`). Every job saves its LoRA adapter in a directory of its own, `/models/trained/<job_id>`, so no job (of either size) overwrites an earlier model; each completed job is a [trained model](/training/trained-models). Only the adapter is saved: the base model stays in the Hugging Face cache volume and is shared by all jobs, and inference needs `model_size` to match the size the adapter was trained for.
+`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture and `google/gemma-4-12B-it` (12B) the newer `gemma4_unified` one. Both train through Unsloth (2026.10.x, `transformers<=5.17`) in one shared image (`requirements_train.txt`) and serve through plain `transformers` + `peft` + `bitsandbytes` in a separate, lighter inference-only image (`requirements_infer.txt`: no Unsloth, trl, datasets or torchao, and a slim base image without the CUDA toolkit). The base model is loaded 4-bit and the trained adapter attached on top. See [Images](#images) for all the images. Keep the `torch` and `transformers` ranges of the two requirements files in step. Every job saves its LoRA adapter in a directory of its own, `/models/trained/<job_id>`, so no job (of either size) overwrites an earlier model; each completed job is a [trained model](/training/trained-models). Only the adapter is saved: the base model stays in the Hugging Face cache volume and is shared by all jobs, and inference needs `model_size` to match the size the adapter was trained for.
 
 | Size | Image requirements | Code |
 | --- | --- | --- |
-| 4b | `requirements_train.txt` | `model_load.py`, `model_train.py` |
-| 12b | `requirements_train.txt` (shared) | `model_load.py`, `model_train.py` |
+| 4b, training | `requirements_train.txt` | `model_load.py`, `model_train.py` |
+| 12b, training | `requirements_train.txt` (shared) | `model_load.py`, `model_train.py` |
+| 4b, inference | `requirements_infer.txt` | `model_load_infer.py`, `inference.py` |
+| 12b, inference | `requirements_infer.txt` (shared) | `model_load_infer.py`, `inference.py` |
+
+## Images
+
+`app.py` declares four images (`ImageSpec`); every function names the one it runs in. Code is mounted last, so a code change never rebuilds the dependency layers.
+
+| Image | Base | Requirements | Used by |
+| --- | --- | --- | --- |
+| `CPU_IMAGE` | Debian slim | none | `ping`, dataset checks, the `train` and `generate` routers |
+| `WEB_IMAGE` | Debian slim | `requirements_web.txt` | the web API (`serve_api`) |
+| `UNSLOTH_IMAGE` (training) | `nvidia/cuda:12.8.1-devel` | `requirements_train.txt` | `train_4b`, `train_12b` |
+| `INFER_IMAGE` (inference only) | Debian slim (no CUDA toolkit) | `requirements_infer.txt` | `generate_4b`, `generate_12b` |
+
+The inference image is kept as light as possible: it has only `torch`, `transformers`, `peft`, `accelerate`, `bitsandbytes` and `modal`. No Unsloth (and none of what it pulls in), no `trl`, `datasets`, `torchao` or `torchvision`, and no CUDA toolkit: the torch wheels bring the CUDA libraries they need and Modal provides the driver (`ImageSpec(gpu=True, cuda_toolkit=False)`). That makes the build and the cold start of an inference container smaller than with the training image. The adapter a training job saves is a standard peft LoRA adapter, so inference loads the base model 4-bit (nf4) with `bitsandbytes` and attaches the adapter with `peft` (`model_load_infer.py`). Keep the `torch` and `transformers` ranges of `requirements_train.txt` and `requirements_infer.txt` in step. Redeploy the Modal app to build the new image.
 
 ## LoRA settings
 

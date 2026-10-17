@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.16.0] - 2026-11-02
+
+### Added
+- Model sizes page: an **Images** section (`/training/models#images`) listing the images of the Modal app and what each has, including the new inference-only image (`requirements_infer.txt`: `torch`, `transformers`, `peft`, `accelerate`, `bitsandbytes`; no Unsloth, slim base without the CUDA toolkit). Documents gligabao 0.40.0.
+
+### Changed
+- Training pages: inference no longer runs in the Unsloth training image; it loads the base model 4-bit and attaches the adapter with `transformers` + `peft` (models, running on Modal, provider and trained models pages, and the Modal app lifecycle page).
+
 ## [0.15.0] - 2026-11-01
 
 ### Added
