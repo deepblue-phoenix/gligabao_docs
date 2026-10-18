@@ -5,7 +5,7 @@ description: "The Eval button of a trained model: it is asked its training datas
 
 `evals/training/` (`dataset.go`, `eval.go`, `judge.go`), `internal/api/training/evals.go`, `internal/db/relational/model/trained_model_eval.go`, `internal/db/relational/{sqlite,postgres}/db_trained_model_eval.go`, `admin_ui/src/training.ts`
 
-An **eval** of a trained model asks the model the questions of a dataset and has an external LLM judge how closely its answers agree with the dataset's. For now the dataset is the model's own **training dataset**, so the score says how well the model learned what it was trained on. The code is the eval subsystem [`evals/training`](https://github.com/deepblue-phoenix/gligabao/blob/main/evals/training/README.md) (the logic) and `internal/api/training/evals.go` (the HTTP endpoints and the background runner). It is separate from the knowledge-extraction evals ([Evals](/operations/evals), `evals/knowledge`).
+An **eval** of a trained model asks the model the questions of a dataset and has an external LLM judge how closely its answers agree with the dataset's. For now the dataset is the model's own **training dataset**, so the score says how well the model learned what it was trained on. The code is the eval subsystem [`evals/training`](https://github.com/deepblue-phoenix/gligabao/blob/main/evals/training/README.md) (the logic) and `internal/api/training/evals.go` (the HTTP endpoints and the background runner). It is separate from the knowledge-extraction evals ([Evals](/evals/evals), `evals/knowledge`).
 
 ## What happens
 
@@ -52,7 +52,7 @@ The judge is an LLM: its scores are not exact, and repeating an eval can differ 
 4. A run that only gets failures stops instead of burning GPU time: after 2 batches in a row where the model answered nothing (a dead sidecar, weights gone from the volume), or 3 batches in a row where the judge graded nothing (a bad API key, the API down). The eval is then `failed` with the last error, and the batches before it are kept.
 5. After each batch its items and the running totals (answered, judged, failed, correct, partial, incorrect, score sum, the judge's calls, tokens and cost) are handed to the sink, which the server stores, so progress is visible while the eval runs.
 
-The logic is a library with no HTTP, sidecar or database in it (`Run(ctx, cfg, examples, generate, judge, sink)` takes the model as a function and the judge as an LLM); `internal/api/training/evals.go` wires it to the sidecar, to the recording of LLM calls and to the database. Its tests use a fake model and judge, with no network. It is separate from the knowledge-extraction evals, which have their own runner in `evals/knowledge` (see [Evals](/operations/evals)); [evals/README.md](https://github.com/deepblue-phoenix/gligabao/blob/main/evals/README.md) compares the two.
+The logic is a library with no HTTP, sidecar or database in it (`Run(ctx, cfg, examples, generate, judge, sink)` takes the model as a function and the judge as an LLM); `internal/api/training/evals.go` wires it to the sidecar, to the recording of LLM calls and to the database. Its tests use a fake model and judge, with no network. It is separate from the knowledge-extraction evals, which have their own runner in `evals/knowledge` (see [Evals](/evals/evals)); [evals/README.md](https://github.com/deepblue-phoenix/gligabao/blob/main/evals/README.md) compares the two.
 
 ## API
 
@@ -80,7 +80,7 @@ A run holds no results of its own, only the link to its eval: the status, the co
 - `model`: the trained model that was evaluated (`id`, `name`, `base_model`, `model_size`, `num_train_steps`, `final_loss` and `params`, the training settings), so runs can be compared by recipe;
 - `status` (the eval's), `mean_score` (0 to 5) and `correct_rate` (the share of judged answers that is correct), both `null` until an answer is judged.
 
-These are separate from the [knowledge-extraction experiments](/operations/experiments) (tables `gb_experiments`, ...). Deleting a trained model deletes its evals and so their runs; the experiment stays.
+These are separate from the [knowledge-extraction experiments](/evals/experiments) (tables `gb_experiments`, ...). Deleting a trained model deletes its evals and so their runs; the experiment stays.
 
 ## Tables
 

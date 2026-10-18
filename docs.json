@@ -31,7 +31,7 @@
           },
           {
             "group": "Evals",
-            "pages": ["operations/evals", "operations/experiments", "training/evals"]
+            "pages": ["evals/evals", "evals/experiments", "evals/training"]
           }
         ]
       },
@@ -97,6 +97,11 @@
       ]
     }
   },
+  "redirects": [
+    { "source": "/operations/evals", "destination": "/evals/evals" },
+    { "source": "/operations/experiments", "destination": "/evals/experiments" },
+    { "source": "/training/evals", "destination": "/evals/training" }
+  ],
   "navbar": {
     "primary": {
       "type": "github",

@@ -17,4 +17,5 @@ Navigation and theme are configured in `docs.json`. Deploy by installing the Min
 - `index.mdx`, `getting-started/`: landing page and onboarding
 - `concepts/`, `guides/`: how gligabao models and processes memory
 - `api-reference/`: endpoints
-- `embedding/`, `operations/`, `appendix/`: library use, evals, versioning, design notes
+- `evals/`: knowledge evals and ATIF trajectories, eval experiments, evals of trained models
+- `embedding/`, `operations/`, `appendix/`: library use, operations, versioning, design notes
