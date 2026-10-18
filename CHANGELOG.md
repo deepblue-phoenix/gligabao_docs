@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.18.0] - 2026-10-23
+
+### Changed
+- Documents gligabao 0.47.0: training datasets are found by `dataset.toml` manifests in a training datasets directory (`bin/datasets_training/`, one subdirectory per dataset, with the dataset's generator script next to its data). The Training datasets page has a new section, **The training datasets directory and manifests** (the layout, discovery, every manifest key, the validity rules, problems, names, how to add a dataset), and describes the new list answer (`datasets` and `problems`), the preview's `name`, the record keyed by `<name>.jsonl`, and the upload as a dataset of its own (`409` on a clash). The anchor `#managing-datasets-go-server` is now `#endpoints-go-server`.
+- Training jobs, overview, sidecar API and running pages: a job needs a dataset, named in the required `dataset` field (there is no default dataset any more); `modal run app.py --action sync|validate|train` take `--dataset <name>`, and `--action datasets` lists the local ones. The admin UI's training view lists the datasets and the ones that cannot be used.
+- Go library and configuration pages: `TrainingDatasetDir` is the training datasets directory of manifests, default `datasets_training` next to `DBPath` (it was `<name>.training_datasets`).
+
+### Removed
+- The sidecar's default dataset and the bundled `finetune_data/` from the pages (the 325-example tool-calling dataset); the bundled dataset is now `world-knowledge-base`.
+
 ## [0.17.1] - 2026-10-23
 
 ### Fixed

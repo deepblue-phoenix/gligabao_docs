@@ -18,7 +18,7 @@ The sidecar reports a started job as a `TrainingJob`; the Go client decodes the 
 | `status` | string | What the sidecar reports when the job starts: `started`. |
 | `model_size` | string | `4b` or `12b`. |
 | `num_train_steps` | integer | How many steps the job was asked to train. |
-| `dataset` | string | The file on the data volume the job trains on; empty for the default dataset. |
+| `dataset` | string | The file on the data volume the job trains on: the dataset's name plus `.jsonl`. |
 | `started_at` | RFC 3339 timestamp | When the sidecar started the job. Always timezone-aware UTC, so the Go side can parse it. |
 
 The two definitions:
@@ -50,9 +50,9 @@ The body is optional JSON; every field is optional too:
 | --- | --- | --- |
 | `num_train_steps` | `100` | Training steps. Must be positive. |
 | `model_size` | `4b` | `4b` or `12b` (case-insensitive). See [Model sizes](/training/models). |
-| `dataset` | the sidecar's default dataset | File name of an uploaded training dataset (a `*.jsonl`, no path), as listed by `GET /v1/gb/training/datasets`. The server sends its file to the sidecar with the job. See [Training datasets](/training/datasets#how-a-dataset-reaches-the-sidecar). |
+| `dataset` | **required** | The name of a training dataset, as listed by `GET /v1/gb/training/datasets` (a subdirectory of the training datasets directory with a `dataset.toml` manifest). The server sends its data file to the sidecar with the job. See [Training datasets](/training/datasets#how-a-dataset-reaches-the-sidecar). |
 
-An empty body starts a 4b job of 100 steps on the default dataset. A field left out is not sent, so the defaults are the sidecar's (`sidecar.DefaultNumTrainSteps`, `sidecar.DefaultModelSize` in Go).
+Only `dataset` is required: `{"dataset": "my-dataset"}` starts a 4b job of 100 steps on it. A field left out is not sent, so the defaults are the sidecar's (`sidecar.DefaultNumTrainSteps`, `sidecar.DefaultModelSize` in Go).
 
 ```sh
 curl -X POST http://localhost:7878/v1/gb/training/jobs \
@@ -83,11 +83,11 @@ The answer is `201` with the stored row:
 | Status | When |
 | --- | --- |
 | `201` | The job was started and recorded. |
-| `400` | The body is not valid JSON, `num_train_steps` is negative, `model_size` is not `4b` or `12b`, or `dataset` is not a plain `*.jsonl` file name (the sidecar is not called). Also for a `dataset` the server has no record of (upload it first), and when the sidecar itself rejects the request as invalid: the answer then carries the sidecar's message. |
+| `400` | The body is not valid JSON, `num_train_steps` is negative, `model_size` is not `4b` or `12b`, or there is no `dataset` (the sidecar is not called). Also for a `dataset` that is not in the training datasets directory (an unknown name, or a dataset whose manifest or data file is not usable, see the `problems` of the dataset list), and when the sidecar itself rejects the request as invalid: the answer then carries the sidecar's message. |
 | `404` | `db` is not one of the configured databases. |
 | `502` | The sidecar could not be reached, or it answered with another error: its own `502` when it cannot reach Modal (the app is not deployed, or its URL cannot be found), or an error status from the Modal web API. Nothing is recorded. |
 | `503` | The server has no sidecar client: the sidecar failed its health check when the server started ("sidecar is not active"). Start the sidecar and restart the server. |
-| `500` | The dataset's file is missing from the dataset directory or does not match its record (upload it again); or the job was started, but the row could not be written or read back. The message names the `job_id`, so the job can still be found on the provider. |
+| `500` | The dataset's data file cannot be read or is not a valid dataset; or the job was started, but the row could not be written or read back. The message names the `job_id`, so the job can still be found on the provider. |
 
 Every job the sidecar reports as started is a new row, even if an identical one was started a minute before. A start that fails records nothing. The row is written even if the HTTP client disconnects while the job is being started, because by then the job is already running. Once it is written, the [training monitor](#training-progress) starts following the job.
 
@@ -100,7 +100,7 @@ Every job the sidecar reports as started is a new row, even if an identical one 
 | `GET /v1/gb/training/models[?db=<name>][&limit=<n>]` | `{"models": [...]}`: the rows of `gb_trained_models`, newest first (default 100, at most 500). See [Trained models](/training/trained-models). |
 | `GET /v1/gb/training/models/{id}[?db=<name>]` | One trained model; `404` if unknown. |
 | `POST /v1/gb/training/models/{id}/infer[?db=<name>]` | Body `{"prompt", "max_tokens"?, "temperature"?}`: runs the prompt through that model on the sidecar and answers `{"model_id", "response"}`. See [Trained models](/training/trained-models#how-inference-runs). |
-| `GET /v1/gb/training/datasets[?db=<name>]` | `{"datasets": [...]}`: the training datasets of the database (`filename`, `size_bytes`, `num_records`, `sha256`, `status`, `updated_at`, `synced_at`), latest first. Read from the database only: no sidecar needed. Uploading is `POST /v1/gb/training/datasets`; see [Training datasets](/training/datasets#managing-datasets-go-server). |
+| `GET /v1/gb/training/datasets[?db=<name>]` | `{"datasets": [...], "problems": [...]}`: the training datasets found in the training datasets directory by their `dataset.toml` manifests, by name (`name`, `description`, `file`, `dir`, `filename`, `size_bytes`, `num_records`, `sha256`, `status`, `updated_at`, `synced_at`), and the subdirectories whose manifest cannot be used. No sidecar needed. Uploading is `POST /v1/gb/training/datasets`; see [Training datasets](/training/datasets#endpoints-go-server). |
 
 ## Training progress
 
@@ -129,7 +129,7 @@ A client that cannot keep up (more than 256 events behind) is disconnected; it r
 
 ### The training view
 
-The **training** view of the [admin UI](/getting-started/configuration#admin-ui) puts this together. The `Run` button posts to the start endpoint with the chosen model size, dataset (picked from the uploaded datasets) and steps. The table lists the jobs (status, model, dataset, `last_step / num_train_steps`, loss, start time) and is updated from the feed without polling. Selecting a job shows its event feed and a graph of its loss against the step, built from the stored events and then the live ones. The view also uploads datasets (a file input and a table of the uploaded ones with their status). It opens its two SSE connections only while it is shown.
+The **training** view of the [admin UI](/getting-started/configuration#admin-ui) puts this together. The `Run` button posts to the start endpoint with the chosen model size, dataset (picked from the datasets of the training datasets directory) and steps. The table lists the jobs (status, model, dataset, `last_step / num_train_steps`, loss, start time) and is updated from the feed without polling. Selecting a job shows its event feed and a graph of its loss against the step, built from the stored events and then the live ones. The view also lists the datasets (a table with their status, and the directories whose manifest cannot be used), opens one to inspect its first lines, and uploads datasets (a file input). It opens its two SSE connections only while it is shown.
 
 ## The `gb_training_job_runs` table
 
@@ -142,7 +142,7 @@ One row per training job started. Created with the rest of the schema, on both S
 | `provider_job_id` | The compute provider's ID of the call. Empty if the sidecar did not send one. |
 | `status` | `started` when the sidecar reports the job started, then the job's status events: `running`, `training`, and finally `completed`, `failed` or `cancelled` (stopped on request). |
 | `model_size` | `4b` or `12b`. |
-| `dataset` | The dataset file the job trains on; empty for the sidecar's default dataset. |
+| `dataset` | The dataset file the job trains on (empty only for a job started before a dataset was required). |
 | `num_train_steps` | Steps the job was asked to train. |
 | `last_step`, `last_loss` | From the newest progress event (`last_loss` is null until a progress event has a loss). |
 | `final_loss` | The training loss reported when the job completed. Null before. |
@@ -162,7 +162,7 @@ A trained model is a set of weights: for the LoRA fine-tuning the sidecar does, 
 | `run_id` | The job run (`gb_training_job_runs.id`) that made it; null if that run was deleted. |
 | `job_id` | The sidecar's job ID. Unique: a job makes one model. |
 | `base_model`, `model_size` | The model that was fine-tuned (e.g. `google/gemma-4-E4B-it`) and its size, `4b` or `12b`. Inference needs the size to pick the hardware. |
-| `dataset`, `dataset_sha256`, `num_examples` | The dataset file name (empty for the sidecar's default), the digest of the file the job read (the file of that name can be uploaded again with other content) and its number of examples. |
+| `dataset`, `dataset_sha256`, `num_examples` | The dataset file name (<name>.jsonl), the digest of the file the job read (the file of that name can change later) and its number of examples. |
 | `num_train_steps`, `final_loss` | How long the job trained and its mean training loss. |
 | `params` | JSON object: the other training settings. |
 | `path` | The directory of the weights on the models volume, relative to it (`trained/<job id>`): the `model_path` of inference. |
@@ -201,7 +201,7 @@ c := sidecar.New("")   // "" is sidecar.DefaultBaseURL
 job, err := c.StartTrainingJob(ctx, sidecar.StartTrainingJobRequest{
     NumTrainSteps: 500,                  // 0 = the sidecar's default (100)
     ModelSize:     sidecar.ModelSize12B, // "" = the sidecar's default (4b)
-    Dataset:       "my.jsonl",           // "" = the sidecar's default dataset
+    Dataset:       "my.jsonl",           // required: the dataset's name plus .jsonl
     // DatasetContent: the dataset's jsonl file, base64; the sidecar stores it as Dataset before it starts the job
 })
 // job.JobID, job.ProviderJobID, job.Status, job.ModelSize, job.Dataset, job.NumTrainSteps, job.StartedAt

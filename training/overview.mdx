@@ -11,8 +11,8 @@ gligabao can fine-tune Gemma-4 (4B and 12B, with LoRA adapters) on a cloud GPU a
 
 | Piece | Where | Does |
 | --- | --- | --- |
-| Admin UI, training view | `admin_ui/src/training.ts` | A dataset upload, a `Run` button (model size, dataset, steps), the list of jobs, the list of trained models (with a form to run inference on one), and for the selected job a live event feed and a loss graph. |
-| Training endpoints | Go, `internal/api/training/` | `POST` / `GET /v1/gb/training/jobs` (start a job and record it; list jobs), `GET /v1/gb/training/models` and `POST /v1/gb/training/models/{id}/infer` (the trained models, and running a prompt through one), `POST` / `GET /v1/gb/training/datasets` (upload and list the training datasets: the Go server alone manages them) and the SSE feed `GET /v1/gb/training/events`. Served whether or not the admin UI is on. |
+| Admin UI, training view | `admin_ui/src/training.ts` | The datasets (list, inspect, upload), a `Run` button (model size, dataset, steps), the list of jobs, the list of trained models (with a form to run inference on one), and for the selected job a live event feed and a loss graph. |
+| Training endpoints | Go, `internal/api/training/` | `POST` / `GET /v1/gb/training/jobs` (start a job and record it; list jobs), `GET /v1/gb/training/models` and `POST /v1/gb/training/models/{id}/infer` (the trained models, and running a prompt through one), `POST` / `GET /v1/gb/training/datasets` (upload and list the training datasets, found in the training datasets directory by their `dataset.toml` manifests: the Go server alone manages them) and the SSE feed `GET /v1/gb/training/events`. Served whether or not the admin UI is on. |
 | Training monitor | Go, `internal/api/training/monitor.go` | Follows the sidecar's progress stream of every job, stores the events, keeps the job's row current and forwards the events to the admin UI. |
 | Go client | Go, `internal/sidecar/` | The only code that knows the sidecar's HTTP API (the Go server never calls Modal itself): `StartTrainingJob`, `StreamTrainingJobEvents`. |
 | `gb_training_job_runs`, `gb_training_job_events`, `gb_training_datasets`, `gb_trained_models` | Database (SQLite and PostgreSQL) | One row per job started, kept current as it runs; one row per event the sidecar reported for it; one row per uploaded training dataset (the file is kept in the training dataset directory); one row per trained model, the weights a completed job saved. |
@@ -69,7 +69,7 @@ The events are status changes (`running`, `training`, `completed` with the final
 ## A typical workflow
 
 1. Set up the [sidecar](/operations/sidecar) with your Modal tokens once, and deploy the Modal app: with the **Deploy** button of the admin UI's training view ([Modal app lifecycle](/training/modal)) or `modal deploy app.py` ([Running on Modal](/training/running)).
-2. [Upload](/training/datasets#managing-datasets-go-server) one or more datasets to the Go server (`POST /v1/gb/training/datasets`, or the admin UI's training view). They are sent to the sidecar with the job that uses them. For the default dataset, `modal run app.py --action sync` writes it to the data volume. Format: [Training datasets](/training/datasets).
+2. [Add](/training/datasets#adding-a-dataset) one or more datasets: a subdirectory of the training datasets directory (`bin/datasets_training/`) with a `dataset.toml` manifest and the JSONL file (or upload a file through `POST /v1/gb/training/datasets` or the admin UI's training view). The server finds them by their manifests, and sends one to the sidecar with the job that uses it. A job needs a dataset; there is no default one. Format and manifest: [Training datasets](/training/datasets).
 3. Pick a size ([Model sizes](/training/models)) and a dataset; start with `4b` and 100 to 200 steps to check that the loss falls.
 4. Start the job: the `Run` button of the admin UI, the [endpoint](/training/jobs#starting-a-job) it calls, or `modal run app.py --action train` directly (that one bypasses the sidecar and is not recorded by the server).
 5. Watch it in the **training** view of the admin UI (feed and loss graph), or through [`GET /v1/gb/training/events`](/training/jobs#training-progress); the sidecar's own views are `GET /training/job_events` and `GET /training/job_progress` ([sidecar API](/training/sidecar-api)).
@@ -88,7 +88,7 @@ The settings of the sidecar itself (`SIDECAR_BACKEND`, `SIDECAR_APP_NAME`, the M
 ## In this section
 
 - [Training jobs](/training/jobs): the `TrainingJob` struct, the training endpoints, the `gb_training_job_runs` table and the Go client.
-- [Training datasets](/training/datasets): the dataset format, upload and list on the Go server, how a dataset reaches the sidecar, `TrainingDataset`.
+- [Training datasets](/training/datasets): the dataset format, the training datasets directory and its manifests, listing and uploading on the Go server, how a dataset reaches the sidecar, `TrainingDataset`.
 - [Model sizes](/training/models): 4B and 12B, backends, GPUs, cost, LoRA settings, troubleshooting.
 - [Trained models](/training/trained-models): where a job's weights are saved, the `gb_trained_models` table, how inference picks a model, and how to add an inference endpoint.
 - [Sidecar training API](/training/sidecar-api): the REST endpoints the sidecar serves and the Modal web API behind them.
