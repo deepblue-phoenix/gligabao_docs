@@ -32,6 +32,23 @@
           {
             "group": "Evals",
             "pages": ["evals/evals", "evals/experiments", "evals/training"]
+          },
+          {
+            "group": "Training",
+            "pages": [
+              {
+                "group": "Getting started",
+                "pages": ["training/overview", "training/running", "training/modal"]
+              },
+              {
+                "group": "Jobs and data",
+                "pages": ["training/jobs", "training/datasets", "training/models", "training/trained-models"]
+              },
+              {
+                "group": "Internals",
+                "pages": ["training/sidecar-api", "training/providers"]
+              }
+            ]
           }
         ]
       },
@@ -49,23 +66,6 @@
           {
             "group": "Service",
             "pages": ["api-reference/overview"]
-          }
-        ]
-      },
-      {
-        "tab": "Training",
-        "groups": [
-          {
-            "group": "Getting started",
-            "pages": ["training/overview", "training/running", "training/modal"]
-          },
-          {
-            "group": "Jobs and data",
-            "pages": ["training/jobs", "training/datasets", "training/models", "training/trained-models"]
-          },
-          {
-            "group": "Internals",
-            "pages": ["training/sidecar-api", "training/providers"]
           }
         ]
       },

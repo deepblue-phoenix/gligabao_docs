@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.23.0] - 2026-10-26
+
+### Changed
+- The **Training** tab is merged into the **Documentation** tab as a **Training** group, with its three groups (Getting started, Jobs and data, Internals) nested in it. The tab is gone from the top navigation; the page URLs are unchanged.
+
 ## [0.22.0] - 2026-10-26
 
 ### Changed
