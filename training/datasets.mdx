@@ -158,3 +158,5 @@ modal run app.py --action train --dataset <name> --train-steps 100 --model-size 
 ```
 
 `--dataset` is required for `sync`, `validate` and `train`.
+
+A dataset is also what a trained model can be evaluated on: the **Eval** of a model asks it the questions of the dataset it was trained on, so the dataset must stay in this directory (see [Evals of trained models](/training/evals)).

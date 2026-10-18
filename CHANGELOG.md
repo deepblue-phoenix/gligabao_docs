@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.19.0] - 2026-10-24
+
+### Added
+- Documents gligabao 0.49.0 and 0.49.1: a new page, **Evals of trained models** (`/training/evals`), on the **Eval** button of a trained model in the admin UI. It covers what an eval does (the model is asked the questions of its training dataset through the sidecar, an LLM judges the answers from 0 to 5 in batches of 10 by default), the score, how the judge works (the rubric, retries, when a run gives up), the endpoints (`POST /v1/gb/training/models/{id}/evals`, `GET .../evals`, `GET /v1/gb/training/evals/{id}`, `POST .../cancel`) and the `gb_trained_model_evals` / `gb_trained_model_eval_items` tables.
+- A section on **why the trained model is asked one question per prompt**: Gemma 4 4B and 12B were fine-tuned on single turns, so several questions in one prompt are a shape they never saw, interfere with each other at that size, share one output budget and make the scores depend on the batching. It also says what is not the same (batching at the inference engine, parallel calls) and why batching the judge's items is different.
+
+### Changed
+- The knowledge-extraction runner moved to `evals/knowledge` in gligabao 0.49.0: the Evals, Eval experiments, Web search, Remember, Configuration pages now say `go run ./evals/knowledge` and link `evals/knowledge/README.md` and `evals/knowledge/suites/`. The Evals page points to the new page for the other eval system.
+- Trained models, Training datasets and Training overview pages link to the new page (the Eval button, its endpoints and tables; a dataset must stay in the training datasets directory to be evaluated on).
+
 ## [0.18.0] - 2026-10-23
 
 ### Changed
