@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.21.0] - 2026-10-26
+
+### Changed
+- The eval pages (**Evals and ATIF trajectories**, **Eval experiments**, **Evals of trained models**) are now together in a new **Evals** group of the Documentation tab. They were spread over the Training tab and the Embedding & ops tab. The page URLs are unchanged.
+
 ## [0.20.0] - 2026-10-25
 
 ### Added
