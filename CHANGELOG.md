@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.20.0] - 2026-10-25
+
+### Added
+- Documents gligabao 0.51.0: the **Evals of trained models** page has a new section, **Experiments**: an eval started with `experiment` becomes a run of a named training experiment, what a run shows (the eval as it is now, the trained model evaluated, mean score and share of correct answers), the endpoints `GET /v1/gb/training/experiments` and `GET /v1/gb/training/experiments/{id}`, and the tables `gb_training_experiments` and `gb_training_experiment_runs`, which are separate from the knowledge-extraction experiments.
+
 ## [0.19.0] - 2026-10-24
 
 ### Added
