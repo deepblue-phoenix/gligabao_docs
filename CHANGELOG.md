@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.17.1] - 2026-10-23
+
+### Fixed
+- Datasets page: the training text uses Gemma 4's turn markers (`<|turn>user … <turn|> <|turn>model … <turn|>`), not Gemma 2/3's `<start_of_turn>` / `<end_of_turn>`. Documents gligabao 0.46.1, which fixes trained models that never stopped and ran to `max_tokens`: where the end-of-turn token comes from (the dataset file has no EOS), why the old markers failed, how `<bos>` is handled, and that adapters trained before 0.46.1 must be retrained. The Modal page's troubleshooting row for slow warm requests points to it.
+
 ## [0.17.0] - 2026-10-22
 
 ### Added
