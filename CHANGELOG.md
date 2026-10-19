@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.25.3] - 2026-10-19
+
+### Changed
+- Documents gligabao 0.57.0: a training eval has one case result per example, like a knowledge eval has one per case (`gb_experiment_case_results`), with the per-case columns in `gb_training_case_meta` (replacing `gb_training_case_results`); the eval run is the run (its ID, status and times), with `judge_cost_usd` and `error` in `gb_training_eval_run_meta`. Updated *Eval experiments*, *Evals of trained models* and *Trained models*.
+
 ## [0.25.2] - 2026-10-19
 
 ### Changed
