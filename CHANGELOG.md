@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.28.2] - 2026-10-19
+
+### Fixed
+- Documents gligabao 0.66.0: *Remember* no longer lists the placeholder table `gb_items`, which was removed.
+- Documents gligabao 0.65.0: *Ontologies* points to the bundled ontology at `bin/ontology/market.owl` (it was `ontology/market.owl`), in the examples and the link.
+
 ## [0.28.1] - 2026-10-19
 
 ### Fixed
