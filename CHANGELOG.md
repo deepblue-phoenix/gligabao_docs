@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.24.0] - 2026-10-26
+
+### Changed
+- **Eval tables.** The *Eval experiments* and *Evals of trained models* pages describe the new, unified eval tables: knowledge and training evals share `gb_experiments`, `gb_experiment_evals`, `gb_experiment_runs` and `gb_experiment_run_evals`, each with a `type` column (`knowledge` or `training`), and keep their own columns in `gb_knowledge_eval_meta` and `gb_training_eval_meta` / `gb_training_eval_items`. They replace `gb_trained_model_evals`, `gb_trained_model_eval_items`, `gb_training_experiments` and `gb_training_experiment_runs`. The table for the outcome of an eval in a run is `gb_experiment_results` (a short *Terms* note defines eval, suite, run, result and experiment). Suites are described for both kinds (training evals have none yet). The *Trained models* page links to them.
+
 ## [0.23.0] - 2026-10-26
 
 ### Changed
