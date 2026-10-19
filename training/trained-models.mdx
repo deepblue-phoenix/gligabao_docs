@@ -3,7 +3,7 @@ title: "Trained models"
 description: "Where a job's weights are saved, how a completed job becomes a gb_trained_models row, how inference picks a model, and how to add an inference endpoint."
 ---
 
-`sidecar/ai_train/ai_train_core/trained_model.py`, `model_train.py`, `inference.py`, `sidecar/ai_train/api/api.py`, `sidecar/ai_train/app.py`, `internal/api/training/models.go`, `internal/api/training/monitor.go`, `internal/sidecar/inference.go`, `internal/db/relational/`
+`sidecar/ai_train/ai_train_core/trained_model.py`, `model_train.py`, `inference.py`, `sidecar/ai_train/api/api.py`, `sidecar/ai_train/app.py`, `internal/api/training/models.go`, `internal/api/training/monitor.go`, `internal/sys/sidecar/inference.go`, `internal/db/relational/`
 
 A trained model is a set of weights: for the LoRA fine-tuning the sidecar does, the few files of an adapter (`adapter_config.json`, `adapter_model.safetensors`, the tokenizer files). Each job that **completes** makes a **new** trained model, one row of the `gb_trained_models` table, so a user can train many models of the same type with other data, steps or size, and every one stays available to run inference on. A cancelled or failed job saves nothing.
 
@@ -68,8 +68,8 @@ There are three layers, and a new endpoint touches one or more of them. Redeploy
 
 1. **A new Go endpoint over trained models** (no Python change; for example a batch call, or a different default):
    - write the handler next to `InferOf` in `internal/api/training/models.go`: pick the database (`pick`), read the model with `relational.GetTrainedModel`, and take `ModelSize` and `Path` **from the record, never from the request**;
-   - if it needs something new from the sidecar, add a method to `internal/sidecar/inference.go` (a long call uses `postVia(ctx, c.stream, …)`, which has no overall timeout) and to the `Inferer` interface in `models.go` (the fake sidecar of the tests implements it);
-   - register it in `registerTraining` (`internal/server/server.go`);
+   - if it needs something new from the sidecar, add a method to `internal/sys/sidecar/inference.go` (a long call uses `postVia(ctx, c.stream, …)`, which has no overall timeout) and to the `Inferer` interface in `models.go` (the fake sidecar of the tests implements it);
+   - register it in `registerTraining` (`internal/sys/server/server.go`);
    - test it with the fake sidecar (`internal/api/training/models_test.go`).
 2. **A new sidecar route** (a new kind of request to the Modal app):
    - add `("METHOD", "/path")` to `ROUTES` in `sidecar/routes.py`: the sidecar forwards the route to its backend untouched, it does not parse the body;

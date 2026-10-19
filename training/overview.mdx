@@ -3,7 +3,7 @@ title: "Training"
 description: "How gligabao fine-tunes Gemma-4 on a cloud GPU: the pieces, how a job flows from the training API to the provider, and where each part is documented."
 ---
 
-`internal/sidecar/`, `internal/api/training/`, `admin_ui/src/training.ts`, `internal/db/relational/`, `sidecar/ai_train/`
+`internal/sys/sidecar/`, `internal/api/training/`, `admin_ui/src/training.ts`, `internal/db/relational/`, `sidecar/ai_train/`
 
 gligabao can fine-tune Gemma-4 (4B and 12B, with LoRA adapters) on a cloud GPU and serve the result. The training code is Python and runs on Modal, behind the [Python sidecar](/operations/sidecar): the Go server only ever talks to the sidecar, and the sidecar proxies every request to Modal. The Go server starts jobs through the sidecar, follows their progress (status and loss) and keeps a record of every job it started. The [admin UI](/getting-started/configuration#admin-ui) has a **training** view to run jobs, pick their dataset and watch them.
 
@@ -14,7 +14,7 @@ gligabao can fine-tune Gemma-4 (4B and 12B, with LoRA adapters) on a cloud GPU a
 | Admin UI, training view | `admin_ui/src/training.ts` | The datasets (list, inspect, upload), a `Run` button (model size, dataset, steps), the list of jobs, the list of trained models (with a form to run inference on one, and an **Eval** button that has an LLM judge the model against its training dataset: [Evals of trained models](/evals/training)), and for the selected job a live event feed and a loss graph. |
 | Training endpoints | Go, `internal/api/training/` | `POST` / `GET /v1/gb/training/jobs` (start a job and record it; list jobs), `GET /v1/gb/training/models` and `POST /v1/gb/training/models/{id}/infer` (the trained models, and running a prompt through one), `POST` / `GET /v1/gb/training/datasets` (upload and list the training datasets, found in the training datasets directory by their `dataset.toml` manifests: the Go server alone manages them) and the SSE feed `GET /v1/gb/training/events`. Served whether or not the admin UI is on. |
 | Training monitor | Go, `internal/api/training/monitor.go` | Follows the sidecar's progress stream of every job, stores the events, keeps the job's row current and forwards the events to the admin UI. |
-| Go client | Go, `internal/sidecar/` | The only code that knows the sidecar's HTTP API (the Go server never calls Modal itself): `StartTrainingJob`, `StreamTrainingJobEvents`. |
+| Go client | Go, `internal/sys/sidecar/` | The only code that knows the sidecar's HTTP API (the Go server never calls Modal itself): `StartTrainingJob`, `StreamTrainingJobEvents`. |
 | `gb_training_job_runs`, `gb_training_job_events`, `gb_training_datasets`, `gb_trained_models` | Database (SQLite and PostgreSQL) | One row per job started, kept current as it runs; one row per event the sidecar reported for it; one row per uploaded training dataset (the file is kept in the training dataset directory); one row per trained model, the weights a completed job saved. |
 | Sidecar | Python, `sidecar/` (`routes.py`, `backends/`) | The REST API the Go client calls: `/training/*`, `/infer/*`, `/evals/*`; it has no dataset endpoints. It does no training work: it forwards each request to its backend (`modal`) and streams the answer back. |
 | Modal web API | Python, `sidecar/ai_train/api/` | The web API of the deployed Modal app, which the sidecar's `modal` backend forwards to. Only the sidecar calls it. |
