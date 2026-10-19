@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.26.0] - 2026-10-19
+
+### Added
+- New page **Training data audit** (`training/audit`, in the Training section), documenting gligabao 0.58.0: the **Audit** button of a trained model asks it the questions of its own fine-tuning dataset and an LLM judges the answers, to check that the training took and to find bad training data. It is not an eval and says nothing about generalization; it has its own endpoints (`/v1/gb/training/models/{id}/audits`, `/audits/{id}`, `/audits/{id}/events`, `/audits/{id}/cancel`), tables (`gb_training_audit_runs`, `gb_training_audit_cases`) and Go types (`TrainedModelAuditRun`, `TrainedModelAuditCase`).
+
+### Changed
+- *Evals of trained models* has a note that a model's own dataset is an audit, not an eval, and that the `finetune_dataset` scheme stays until evals have cases of their own. *Trained models* and *Training datasets* point to the audit.
+
 ## [0.25.3] - 2026-10-19
 
 ### Changed

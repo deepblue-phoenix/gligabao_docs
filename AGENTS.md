@@ -31,7 +31,7 @@ Do not add an `[Unreleased]` section: the top entry must always match `VERSION`.
   `../gligabao/docs/<name>.md` is the page `<section>/<name>.mdx` (see `docs.json` for sections); the README sections
   feed `index`, `getting-started/*`, `api-reference/overview`, `embedding/go-library` and `operations/versioning`.
   The `evals/` section is `../gligabao/docs/evals.md` (`evals/evals`), `experiments.md` (`evals/experiments`) and
-  `training/EVALS.md` (`evals/training`).
+  `training/EVALS.md` (`evals/training`). The training data audit is `../gligabao/docs/training/AUDIT.md` (`training/audit`).
 - The `training/` section is written from `../gligabao/docs/sidecar.md`, `../gligabao/docs/training/*.md` and the code under
   `internal/sidecar`, `internal/api/training/` and `sidecar/ai_train/`; it does not map one-to-one to a source page.
   Update it when training jobs, the sidecar API, the `gb_training_job_runs` table or `sidecar_url` change.
