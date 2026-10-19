@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.27.0] - 2026-10-19
+
+### Changed
+- Documents gligabao 0.60.0: `failed` is only a verdict about checks (knowledge evals), and `error` means a case or run could not be run to the end, also for evals and audits of trained models (run: `running`, then `completed`, `error` or `cancelled`; case: `judged` or `error`; counter `num_errored`). The totals of a run are one count per case status (`passed_cases`, `failed_cases`, `error_cases`, `judged_cases`) instead of a `passed_cases` that counted judged cases for training and a `failed_cases` that held all the others. *Experiments*, *Evals of trained models* and *Training data audit* say so.
+
 ## [0.26.1] - 2026-10-19
 
 ### Changed
