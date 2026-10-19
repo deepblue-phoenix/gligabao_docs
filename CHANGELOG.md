@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.25.2] - 2026-10-19
+
+### Changed
+- Documents gligabao 0.56.0's terminology: an eval is a set of cases (it was an "eval suite"), and a run of an eval against a trained model is an eval run; "suite" is gone. Updated *Evals*, *Eval experiments*, *Evals of trained models*, *Trained models*, *Web search* and the quickstart: the `eval` column of `gb_experiment_cases` / `gb_experiment_case_results` (was `suite`), `gb_training_eval_run_meta` (was `gb_training_suite_run_meta`), `eval_run_id` (was `suite_run_id`), `TrainedModelEvalRun`, the history endpoint's `?eval=..&name=..`, and the runner's `-evals` / `-eval` / `-list-evals` flags.
+
+
 ## [0.25.1] - 2026-10-19
 
 ### Changed
