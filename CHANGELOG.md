@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.28.0] - 2026-10-19
+
+### Changed
+- Documents gligabao 0.61.0: the Eval button of a trained model runs real evals, and evals and audits share their types and JSON shapes. *Evals of trained models* now describes the evals (`evals/training/evals/*.json`, named after the training dataset they are about, with named cases the model never saw), the new `eval` and `cases` fields of `POST /models/{id}/evals` (no more `scheme`), `GET /eval-definitions`, that the command-line runner stores its runs, and that `case_name` of a training case is the case's name. *Training data audit* and the two pages' tables describe the shared run and case types (`TrainedModelRun` with a `kind`, `TrainedModelCase`), the `{"run", "cases"}` detail and SSE events of both, `run_id` in a case, and the judge call types `training_eval_judge` and `training_audit_judge`.
+
 ## [0.27.0] - 2026-10-19
 
 ### Changed
