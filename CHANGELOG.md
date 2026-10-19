@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.25.0] - 2026-10-19
+
+### Changed
+- Documents gligabao 0.53.0's eval terminology: an **eval case** is one input/output combination (plus metadata) to be evaluated, and cases are part of an **eval suite**. *Evals and ATIF trajectories* and *Eval experiments* say case where they said eval for one case of a suite (tables `gb_experiment_cases`, `gb_knowledge_case_meta`, `case_name`, `total_cases`, ...), and add the terms.
+- *Evals of trained models*: an eval is a run of a suite (the model's fine-tuning dataset, each example a case) against the model; the page describes the `finetune_dataset` scheme and the new `scheme` field, the `cases` (were `items`) of the API, and the renamed tables (`gb_training_suite_run_meta`, `gb_training_case_results`).
+
 ## [0.24.0] - 2026-10-26
 
 ### Changed
