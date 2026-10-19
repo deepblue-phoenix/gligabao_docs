@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.26.1] - 2026-10-19
+
+### Changed
+- Documents gligabao 0.59.0: evals and audits of trained models use the same statuses. A run is `running`, then `completed`, `failed` or `cancelled` (an eval used to end `passed`), and a case is `judged` or `failed` (an eval's case used to be `passed`); `passed_cases` of a training run counts the `judged` cases. *Evals of trained models*, *Experiments* and *Training data audit* say so; the audit page's comparison table has a row for the statuses.
+
 ## [0.26.0] - 2026-10-19
 
 ### Added
