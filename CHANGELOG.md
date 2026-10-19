@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.28.1] - 2026-10-19
+
+### Fixed
+- Documents gligabao 0.63.1: the evals are the files of `bin/evals_knowledge/` and `bin/evals_training/`, read from disk (`serve --training-eval-dir`), not `evals/*/evals/` embedded in the binary. Fixed in *Evals of trained models*, *Training data audit*, *Experiments* and the web search guide; `GET /eval-definitions` now says it lists the files of the evals directory.
+
 ## [0.28.0] - 2026-10-19
 
 ### Changed
