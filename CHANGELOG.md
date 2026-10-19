@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.25.1] - 2026-10-19
+
+### Changed
+- Documents gligabao 0.55.0's rename: the table of the outcome of a case in a run is `gb_experiment_case_results` (was `gb_experiment_results`), its Go type is `ExperimentCaseResult`, a run's `Results` are `CaseResults`, and the graph endpoint is `GET /case_results/{id}/graph`. Updated *Eval experiments* and *Evals of trained models*, and the table name on *Trained models*.
+
 ## [0.25.0] - 2026-10-19
 
 ### Changed
