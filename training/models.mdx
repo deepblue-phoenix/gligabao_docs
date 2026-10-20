@@ -1,39 +1,41 @@
 ---
 title: "Model sizes"
-description: "Gemma-4 4B and 12B: base models, training backends, GPUs, LoRA settings, cost estimates and troubleshooting."
+description: "Gemma-4 4B, 12B and 31B: base models, training backends, GPUs, LoRA settings, cost estimates and troubleshooting."
 ---
 
 `sidecar/ai_train/ai_train_core/model_config.py`, `model_train.py`
 
-Two sizes can be trained, chosen per job with `model_size` (`4b` or `12b`).
+Three sizes can be trained, chosen per job with `model_size` (`4b`, `12b` or `31b`).
 
 ## Comparison
 
-| | 4b | 12b |
-| --- | --- | --- |
-| Base model | `google/gemma-4-E4B-it` | `google/gemma-4-12B-it` |
-| Parameters | 4 billion | 12 billion |
-| Trainable parameters (LoRA r=16) | about 60M (1.5%) | about 180M (1.5%) |
-| Backend (training) | Unsloth | Unsloth |
-| Backend (inference) | transformers + peft | transformers + peft |
-| Default GPU | A10G (24 GB) | A100 (40 or 80 GB) |
-| Batch size × gradient accumulation | 2 × 4 | 1 × 8 |
-| Effective batch size | 8 | 8 |
-| Rough speed | 1 to 2 minutes per 100 steps | 3 to 4 minutes per 100 steps |
-| Modal cost | about $1.10 per hour | about $4.10 per hour |
+| | 4b | 12b | 31b |
+| --- | --- | --- | --- |
+| Base model | `google/gemma-4-E4B-it` | `google/gemma-4-12B-it` | `google/gemma-4-31B-it` |
+| Parameters | 4 billion | 12 billion | 31 billion |
+| Trainable parameters (LoRA r=16) | about 60M (1.5%) | about 180M (1.5%) | about 450M (1.5%) |
+| Backend (training) | Unsloth | Unsloth | Unsloth |
+| Backend (inference) | transformers + peft | transformers + peft | transformers + peft |
+| Default GPU | A10G (24 GB) | A100 (40 or 80 GB) | A100 (80 GB) |
+| Batch size × gradient accumulation | 2 × 4 | 1 × 8 | 1 × 8 |
+| Effective batch size | 8 | 8 | 8 |
+| Rough speed | 1 to 2 minutes per 100 steps | 3 to 4 minutes per 100 steps | about 8 to 10 minutes per 100 steps (estimate) |
+| Modal cost | about $1.10 per hour | about $4.10 per hour | about $5 per hour (estimate) |
 
 All the numbers are in `ai_train_core/model_config.py` (pure data).
 
 ## Training backend
 
-`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture and `google/gemma-4-12B-it` (12B) the newer `gemma4_unified` one. Both train through Unsloth (2026.10.x, `transformers<=5.17`) in one shared image (`requirements_train.txt`) and serve through plain `transformers` + `peft` + `bitsandbytes` in a separate, lighter inference-only image (`requirements_infer.txt`: no Unsloth, trl, datasets or torchao, and a slim base image without the CUDA toolkit). The base model is loaded 4-bit and the trained adapter attached on top. See [Images](#images) for all the images. Keep the `torch` and `transformers` ranges of the two requirements files in step. Every job saves its LoRA adapter in a directory of its own, `/models/trained/<job_id>`, so no job (of either size) overwrites an earlier model; each completed job is a [trained model](/training/trained-models). Only the adapter is saved: the base model stays in the Hugging Face cache volume and is shared by all jobs, and inference needs `model_size` to match the size the adapter was trained for.
+`google/gemma-4-E4B-it` (4B) uses the `gemma4` architecture and `google/gemma-4-12B-it` (12B) the newer `gemma4_unified` one. All train through Unsloth (2026.10.x, `transformers<=5.17`) in one shared image (`requirements_train.txt`) and serve through plain `transformers` + `peft` + `bitsandbytes` in a separate, lighter inference-only image (`requirements_infer.txt`: no Unsloth, trl, datasets or torchao, and a slim base image without the CUDA toolkit). The base model is loaded 4-bit and the trained adapter attached on top. See [Images](#images) for all the images. Keep the `torch` and `transformers` ranges of the two requirements files in step. Every job saves its LoRA adapter in a directory of its own, `/models/trained/<job_id>`, so no job (of any size) overwrites an earlier model; each completed job is a [trained model](/training/trained-models). Only the adapter is saved: the base model stays in the Hugging Face cache volume and is shared by all jobs, and inference needs `model_size` to match the size the adapter was trained for.
 
 | Size | Image requirements | Code |
 | --- | --- | --- |
 | 4b, training | `requirements_train.txt` | `model_load.py`, `model_train.py` |
 | 12b, training | `requirements_train.txt` (shared) | `model_load.py`, `model_train.py` |
+| 31b, training | `requirements_train.txt` (shared) | `model_load.py`, `model_train.py` |
 | 4b, inference | `requirements_infer.txt` | `model_load_infer.py`, `inference.py` |
 | 12b, inference | `requirements_infer.txt` (shared) | `model_load_infer.py`, `inference.py` |
+| 31b, inference | `requirements_infer.txt` (shared) | `model_load_infer.py`, `inference.py` |
 
 ## Images
 
@@ -43,23 +45,24 @@ All the numbers are in `ai_train_core/model_config.py` (pure data).
 | --- | --- | --- | --- |
 | `CPU_IMAGE` | Debian slim | none | `ping`, dataset checks, the `train` and `generate` routers |
 | `WEB_IMAGE` | Debian slim | `requirements_web.txt` | the web API (`serve_api`) |
-| `UNSLOTH_IMAGE` (training) | `nvidia/cuda:12.8.1-devel` | `requirements_train.txt` | `train_4b`, `train_12b` |
-| `INFER_IMAGE` (inference only) | Debian slim (no CUDA toolkit) | `requirements_infer.txt` | `generate_4b`, `generate_12b` |
+| `UNSLOTH_IMAGE` (training) | `nvidia/cuda:12.8.1-devel` | `requirements_train.txt` | `train_4b`, `train_12b`, `train_31b` |
+| `INFER_IMAGE` (inference only) | Debian slim (no CUDA toolkit) | `requirements_infer.txt` | `generate_4b`, `generate_12b`, `generate_31b` |
 
 The inference image is kept as light as possible: it has only `torch`, `transformers`, `peft`, `accelerate`, `bitsandbytes` and `modal`. No Unsloth (and none of what it pulls in), no `trl`, `datasets`, `torchao` or `torchvision`, and no CUDA toolkit: the torch wheels bring the CUDA libraries they need and Modal provides the driver (`ImageSpec(gpu=True, cuda_toolkit=False)`). That makes the build and the cold start of an inference container smaller than with the training image. The adapter a training job saves is a standard peft LoRA adapter, so inference loads the base model 4-bit (nf4) with `bitsandbytes` and attaches the adapter with `peft` (`model_load_infer.py`). Keep the `torch` and `transformers` ranges of `requirements_train.txt` and `requirements_infer.txt` in step. Redeploy the Modal app to build the new image.
 
 ## LoRA settings
 
-Both use rank 16, alpha 16 and dropout 0 on the q/k/v/o attention projections, with gradient checkpointing and 4-bit quantization of the base model.
+All use rank 16, alpha 16 and dropout 0 on the q/k/v/o attention projections, with gradient checkpointing and 4-bit quantization of the base model.
 
 | Model | Full precision | 4-bit | LoRA adapters | Training total |
 | --- | --- | --- | --- | --- |
 | 4b | about 8 GB | about 2 GB | about 0.5 GB | about 2.5 GB |
 | 12b | about 24 GB | about 6 GB | about 1.5 GB | about 7.5 GB |
+| 31b | about 62 GB | about 16 GB | about 3.5 GB | about 20 GB (activations and optimizer state come on top, so use an 80 GB GPU) |
 
 ## GPU selection
 
-The default comes from `default_gpu` in `model_config.py`: `4b` is `a10g`, `12b` is `a100`. `SIDECAR_GPU` overrides it for the train and generate functions of **every** size. The job's timeout is `SIDECAR_TRAIN_TIMEOUT_S` (default 7200 seconds). See [Running on Modal](/training/running#configuration).
+The default comes from `default_gpu` in `model_config.py`: `4b` is `a10g`, `12b` is `a100` and `31b` is `a100-80gb`. `SIDECAR_GPU` overrides it for the train and generate functions of **every** size. The job's timeout is `SIDECAR_TRAIN_TIMEOUT_S` (default 7200 seconds). See [Running on Modal](/training/running#configuration).
 
 ## Cost estimates
 
@@ -69,11 +72,12 @@ The default comes from `default_gpu` in `model_config.py`: `4b` is `a10g`, `12b`
 | 500 | 25 to 40 minutes, about $0.60 | 75 to 100 minutes, about $2.40 |
 | 1000 | 50 to 80 minutes, about $1.20 | 150 to 200 minutes, about $4.80 |
 
-These are estimates at Modal's prices when they were written, and include the model load.
+These are estimates at Modal's prices when they were written, and include the model load. There is no table for 31b yet: it runs on an A100 80 GB at roughly $5 per hour and is slower than 12b, so plan for a multiple of the 12b figures.
 
 ## Which one to use
 
 - **4b**: lower cost, a smaller dataset (under about 1000 examples), fast iteration, a simple task (tool calling, classification, basic Q&A), quick tests before a larger run.
+- **31b**: when 12b is not good enough and quality matters more than cost or speed; needs an 80 GB GPU (A100 80 GB).
 - **12b**: higher quality, a larger dataset (over about 1000 examples), complex reasoning or longer context, production, and a 3 to 4 times higher cost is acceptable.
 
 A sensible path: start with 4b, run 100 to 200 steps to see the loss fall, then either train 4b longer (500 to 1000 steps) or move to 12b, which is what to use in production with 500 to 1000 or more steps.
@@ -83,8 +87,9 @@ A sensible path: start with 4b, run 100 to 200 steps to see the loss fall, then 
 - **Out of memory on 4b (A10G)**: it should not happen with batch size 2. If it does, reduce the batch size to 1 and raise gradient accumulation to 8.
 - **Out of memory on 12b (A100)**: it should fit with batch size 1. Make sure 4-bit quantization and gradient checkpointing are on; consider the A100 80 GB.
 - **Too slow, 4b**: an A100 is about twice as fast, at a higher cost.
+- **Out of memory on 31b (A100 80 GB)**: keep batch size 1, 4-bit quantization and gradient checkpointing on, and reduce `max_seq_length` from 2048 to 1024.
 - **Too slow, 12b**: use the A100 80 GB, or reduce `max_seq_length` from 2048 to 1024.
 
 ## Model cards
 
-[google/gemma-4-E4B-it](https://huggingface.co/google/gemma-4-E4B-it), [google/gemma-4-12B-it](https://huggingface.co/google/gemma-4-12B-it), [Unsloth](https://github.com/unslothai/unsloth).
+[google/gemma-4-E4B-it](https://huggingface.co/google/gemma-4-E4B-it), [google/gemma-4-12B-it](https://huggingface.co/google/gemma-4-12B-it), [google/gemma-4-31B-it](https://huggingface.co/google/gemma-4-31B-it), [Unsloth](https://github.com/unslothai/unsloth).

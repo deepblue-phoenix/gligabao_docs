@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.28.4] - 2026-10-24
+
+### Changed
+- Documents gligabao 0.95.0: Gemma 4 31B (`31b`, `google/gemma-4-31B-it`, A100 80 GB) as a third model size, in *Model sizes*, *Running on Modal*, *Training jobs*, *Trained models*, the sidecar API page, the training overview and the Eval page.
+
 ## [0.28.3] - 2026-10-23
 
 ### Changed

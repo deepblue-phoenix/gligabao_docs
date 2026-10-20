@@ -77,7 +77,7 @@ curl http://127.0.0.1:8787/health
 
 ## Remote training
 
-`sidecar/ai_train/` fine-tunes Gemma-4 (4B and 12B, LoRA) on a cloud provider and serves the result, with its own web API. It is the Modal side of the `modal` backend above: it runs on Modal, not inside the sidecar process, and is not imported by `main_sidecar.py`; `Dockerfile.sidecar` copies it only so that the sidecar can deploy it to Modal. Nothing but the sidecar calls its web API. It has its own section of this site, [Training](/training/overview):
+`sidecar/ai_train/` fine-tunes Gemma-4 (4B, 12B and 31B, LoRA) on a cloud provider and serves the result, with its own web API. It is the Modal side of the `modal` backend above: it runs on Modal, not inside the sidecar process, and is not imported by `main_sidecar.py`; `Dockerfile.sidecar` copies it only so that the sidecar can deploy it to Modal. Nothing but the sidecar calls its web API. It has its own section of this site, [Training](/training/overview):
 
 - [Training jobs](/training/jobs): how the Go server starts a job and records it in `gb_training_job_runs`, and the `TrainingJob` struct.
 - [Training datasets](/training/datasets), [Model sizes](/training/models) and the [Sidecar training API](/training/sidecar-api).
