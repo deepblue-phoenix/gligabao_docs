@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.28.3] - 2026-10-23
+
+### Changed
+- Documents gligabao 0.89.0: the default of `SIDECAR_INFER_IDLE_TIMEOUT_S` (how long a GPU inference container stays up after its last request) is 60 seconds instead of 300, in *Running on Modal*, *Trained models* and the sidecar API page.
+
 ## [0.28.2] - 2026-10-19
 
 ### Fixed
