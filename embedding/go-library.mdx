@@ -20,13 +20,16 @@ err = gligabao.Serve(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}
     The configuration described in [Configuration](/getting-started/configuration). `DefaultConfig()` takes API keys from the environment, and fields can be set in code instead of a TOML file.
   </Accordion>
   <Accordion title="ServeOptions">
-    `DBPath` (default `bin/gligabao.db`), `VectorDir` (the chromem directory; default `<name>.vectors` next to `DBPath`), `ImageDir` (image files; default `<name>.images` next to `DBPath`) and `TrainingDatasetDir` (the training datasets directory: one subdirectory per dataset with a `dataset.toml` manifest, see [Training datasets](/training/datasets#the-datasets-directory-and-manifests); datasets uploaded through the server or the admin UI are saved there too; default a `datasets_training` directory next to `DBPath`), the equivalents of `serve --db` / `--vector-dir` / `--image-dir` / `--training-dataset-dir`.
+    `DBPath` (default `bin/gligabao.db`), `VectorDir` (the chromem directory; default `<name>.vectors` next to `DBPath`), `ImageDir` (image files; default `<name>.images` next to `DBPath`) and `TrainingDatasetDir` (the training datasets directory: one subdirectory per dataset with a `dataset.toml` manifest, see [Training datasets](/training/datasets#the-datasets-directory-and-manifests); datasets uploaded through the server or the admin UI are saved there too; default a `datasets_training` directory next to `DBPath`), the equivalents of `serve --db` / `--vector-dir` / `--image-dir` / `--training-dataset-dir`; `TrainedModelExportDir` is the directory trained models' files are fetched to for an [export](/training/exporting#fetching-the-weights) (one subdirectory per job, never deleted by gligabao; default a `trained_models` directory next to `DBPath`, i.e. `bin/trained_models`), `serve --trained-model-export-dir`.
   </Accordion>
   <Accordion title="TimeseriesProviders">
     The [timeseries providers](/api-reference/timeseries#providers) `remember` can fetch from. Each is a `gligabao.TimeseriesProvider{Name, Description, QueryFormat, Fetch}`: `Description` says in natural language when the provider applies (an LLM reads it), `Fetch` is your callback that returns the series.
   </Accordion>
   <Accordion title="Hooks">
     Callbacks gligabao invokes, today the system-event hook (called after every `remember`, `recall` and timeseries request, with counts and timings). See [Hooks](/embedding/hooks).
+  </Accordion>
+  <Accordion title="TrainedModelExporters">
+    The hooks that export a trained model: each is a `gligabao.TrainedModelExporter{Name, Export}`. gligabao fetches the model's files to a local directory and calls `Export` with it (`POST /v1/gb/training/models/{id}/exports`). See [Model exporting](/training/exporting).
   </Accordion>
   <Accordion title="Serve(ctx, cfg, opts)">
     Blocks until `ctx` is cancelled or SIGINT/SIGTERM arrives, then shuts down gracefully. A nil `cfg` means `DefaultConfig()`.

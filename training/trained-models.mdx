@@ -87,7 +87,7 @@ A different kind of weights (another model size, or a trainer that saves somethi
 
 - Listing and reading are plain database calls and need no sidecar; only inference does.
 - The row is the record of what was trained, not proof the weights still exist: gligabao does not check the volume.
-- No endpoint renames, deletes or exports a model, merges adapters, or streams the generated text; one request is one prompt and one answer.
+- No endpoint renames or deletes a model, merges adapters, or streams the generated text (a model is handed to your own code by an [export](/training/exporting)); one request is one prompt and one answer.
 - Training the same settings twice makes two models (and two directories); compare them by `final_loss`, `dataset_sha256` and `params`.
 
 ## Endpoints
@@ -99,6 +99,7 @@ A different kind of weights (another model size, or a trainer that saves somethi
 | `POST /v1/gb/training/models/{id}/audits[?db=]`, `GET /v1/gb/training/models/{id}/audits`, `GET /v1/gb/training/audits/{id}`, `POST /v1/gb/training/audits/{id}/cancel` | Training data audits of the model: it is asked its own training dataset's questions, one per prompt, and an LLM judges the answers in batches, to check that the training took. See [Training data audit](/training/audit#api). |
 | `POST /v1/gb/training/models/{id}/evals[?db=]`, `GET /v1/gb/training/models/{id}/evals`, `GET /v1/gb/training/evals/{id}`, `POST /v1/gb/training/evals/{id}/cancel` | Evals of the model with an LLM as the judge: it is asked its training dataset's questions, one per prompt, and the answers are scored in batches. See [Evals of trained models](/evals/training#api). |
 | `POST /v1/gb/training/models/{id}/infer[?db=]` | Body `{"prompt", "max_tokens"?, "temperature"?}`; runs the prompt through that model's weights on the sidecar (size and path come from the record) and answers `{"id", "model_id", "response", "status", "input_tokens", "output_tokens", "cold_start", "load_seconds", "duration_ms"}`. Every request is stored in `gb_trained_model_inferences` (prompt, response, status, error, tokens, `cold_start`, `load_seconds`, duration), failed ones too. Takes minutes when a GPU container has to start and load the model (a cold request, see [Cold and warm starts](/training/modal#cold-and-warm-starts)). See [How inference runs](#how-inference-runs) for the error codes. |
+| `POST /v1/gb/training/models/{id}/exports`, `GET /v1/gb/training/models/{id}/exports[?limit=]` | Export the model through an exporter hook of the embedding program, and list its exports (`gb_trained_model_exports`). See [Model exporting](/training/exporting). |
 
 Each model has an **Audit** button (see [Training data audit](/training/audit); its results are in `gb_training_audit_runs` and `gb_training_audit_cases`) and an **Eval** button in the training view of the admin UI (see [Evals of trained models](/evals/training)); the eval's results are in the eval tables (`gb_experiment_case_runs`, `gb_training_eval_run_meta` and `gb_training_case_meta`, see [Evals of trained models](/evals/training#tables)).
 

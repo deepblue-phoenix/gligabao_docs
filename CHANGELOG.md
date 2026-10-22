@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.29.0] - 2026-10-24
+
+### Added
+- A new page, **Model exporting** (`/training/exporting`, in Training > Jobs and data), for gligabao 0.96.0 and 0.96.1: how exporting a trained model works inside (the flow of an export request, fetching and verifying the weights, the `gb_trained_model_exports` record, the two endpoints and their statuses, system events, limits) and the contract of the exporter hook.
+- *Hooks*: a *Trained model exporters* section and its row in the table of hooks.
+- *Sidecar training API*: the `GET /models/file` endpoint that streams a model's files.
+
+### Changed
+- *Trained models*, *Training overview* and *Embedding in Go*: link to the new page; the endpoints table lists the export endpoints, and `ServeOptions.TrainedModelExportDir` / `--trained-model-export-dir` and `TrainedModelExporters` are described.
+
 ## [0.28.4] - 2026-10-24
 
 ### Changed
