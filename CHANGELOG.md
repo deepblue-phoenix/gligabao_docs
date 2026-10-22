@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.30.0] - 2026-10-25
+
+### Added
+- A new page, **Admin UI extensions** (`/embedding/admin-extensions`, in Embedding & ops > Embedding in Go), for gligabao 0.97.0: how a program that embeds gligabao adds its own views (nav buttons) and buttons, modals and blocks inside the existing views of the admin UI with plain JavaScript and no build step: a quick start, registering an extension (`ServeOptions.AdminExtensions`), the `gb` API, views, the slots, a Go backend for the extension, styling, how loading works, developing, and the caveats (trusted code, no access control, versioning).
+- *Hooks*, *Embedding in Go* and *Configuration* (Admin UI): link to the new page; *Embedding in Go* lists `AdminExtensions` among the `ServeOptions`.
+
 ## [0.29.0] - 2026-10-24
 
 ### Added
