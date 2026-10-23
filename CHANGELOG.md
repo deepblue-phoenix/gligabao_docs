@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.32.0] - 2026-11-02
+
+### Added
+- *Embedding in Go programs*, for gligabao 0.102.0: `Mount` in the API list and a new section, **Mounting on your own HTTP server**: registering gligabao's handlers (`/v1/gb/`) on the host program's `*http.ServeMux` instead of starting a server on its own port, `MountOptions` (`Mux`, `Wrap`), what is and is not registered, `release`, and the warning that gligabao has no access control of its own.
+
 ## [0.31.0] - 2026-10-29
 
 ### Added

@@ -37,7 +37,37 @@ err = gligabao.Serve(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}
   <Accordion title="Serve(ctx, cfg, opts)">
     Blocks until `ctx` is cancelled or SIGINT/SIGTERM arrives, then shuts down gracefully. A nil `cfg` means `DefaultConfig()`.
   </Accordion>
+  <Accordion title="Mount(ctx, cfg, opts, mount)">
+    Registers gligabao's handlers on your own `*http.ServeMux` instead of starting a server on its own port. A nil `cfg` means `DefaultConfig()`. See [Mounting on your own HTTP server](#mounting-on-your-own-http-server).
+  </Accordion>
 </AccordionGroup>
+
+## Mounting on your own HTTP server
+
+`Serve` starts gligabao's own HTTP server on the config's `port`. A program that already runs an HTTP server (a gloflow `gf_solo`, say) can instead have gligabao register its handlers on the program's `*http.ServeMux` and serve them on its own port, with no second server and no second port.
+
+```go
+mux := http.NewServeMux() // the host's mux, with the host's own routes
+release, err := gligabao.Mount(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}, gligabao.MountOptions{
+    Mux: mux,
+    Wrap: func(next http.Handler) http.Handler { return requireAuth(next) }, // optional
+})
+if err != nil { /* ... */ }
+defer release()
+// ... http.ListenAndServe(":8080", mux), and call release after the host's server has shut down
+```
+
+- It takes the same `Config` and `ServeOptions` as `Serve` (providers, exporters, hooks, admin extensions, directories, ...). `Mount` does the whole setup itself (databases, sidecar check, remember manager, ...) and returns once the handlers are registered, so call it **before** the host starts serving. It does not block and does not handle SIGINT/SIGTERM: the host owns the process.
+- All routes are registered as one subtree, `gligabao.MountPrefix` (`/v1/gb/`): the API and, when the config enables them, the [admin UI](/getting-started/configuration#admin-ui) (`/v1/gb/admin/`) and the eval and training endpoints. They are registered per method (`GET /v1/gb/`, `POST /v1/gb/`, ...), so they do not conflict with a host's `GET /`. The host must not have routes of its own under `/v1/gb/`: `Mount` returns an error, not a panic, if it has.
+- gligabao's own `/`, `/health` and `/version` are **not** registered, they belong to the host, and an unknown path under `/v1/gb/` is a plain `404`. The config's `port` is not used.
+- `release` stops the remember manager and closes the databases. It is idempotent, and is also called when `ctx` is cancelled. Call it after the host's server has shut down; after it the mounted routes answer `503`. The `Hooks` and `App` of `ServeOptions` are installed until then.
+- `MountOptions.Wrap` wraps the whole handler before it is registered.
+
+<Warning>
+  gligabao has no access control of its own (standalone it is meant to run on a private port). Mounted on a public server, its API and admin UI are as public as that server: use `Wrap` to put the host's authentication in front of them.
+</Warning>
+
+`Serve`, the `gligabao` CLI and the standalone `gligabao_int` are unchanged and keep running on their own port. `gligabao_int/cmd` has `EmbedMount`, the counterpart of its `Embed` that mounts instead of listening.
 
 <Note>
   gligabao needs no CGO, so the embedding program can be built with `CGO_ENABLED=0`. A working example with a cobra `serve` command is in the sibling `gligabao_int` project, which uses `replace github.com/deepblue-phoenix/gligabao => ../gligabao` during local development. Programs can pass their own version in `ServeOptions.App`, and get `gligabao.Version()`.
