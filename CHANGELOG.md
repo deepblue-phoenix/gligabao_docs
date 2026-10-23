@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.31.0] - 2026-10-29
+
+### Added
+- *Model exporting* and *Hooks*, for gligabao 0.101.0: the optional `Description` of a `TrainedModelExporter` (shown in the admin UI), the new `GET /v1/gb/training/exporters` endpoint, and a short section on the admin UI's **Export** dialog and **Exporters** block in the training view.
+
 ## [0.30.0] - 2026-10-25
 
 ### Added
