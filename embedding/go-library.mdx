@@ -20,7 +20,7 @@ err = gligabao.Serve(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}
     The configuration described in [Configuration](/getting-started/configuration). `DefaultConfig()` takes API keys from the environment, and fields can be set in code instead of a TOML file.
   </Accordion>
   <Accordion title="ServeOptions">
-    `DBPath` (default `bin/gligabao.db`), `VectorDir` (the chromem directory; default `<name>.vectors` next to `DBPath`), `ImageDir` (image files; default `<name>.images` next to `DBPath`) and `TrainingDatasetDir` (the training datasets directory: one subdirectory per dataset with a `dataset.toml` manifest, see [Training datasets](/training/datasets#the-datasets-directory-and-manifests); datasets uploaded through the server or the admin UI are saved there too; default a `datasets_training` directory next to `DBPath`), the equivalents of `serve --db` / `--vector-dir` / `--image-dir` / `--training-dataset-dir`; `TrainedModelExportDir` is the directory trained models' files are fetched to for an [export](/training/exporting#fetching-the-weights) (one subdirectory per job, never deleted by gligabao; default a `trained_models` directory next to `DBPath`, i.e. `bin/trained_models`), `serve --trained-model-export-dir`.
+    `DBPath` (default `bin/gligabao.db`), `VectorDir` (the chromem directory; default `<name>.vectors` next to `DBPath`), `ImageDir` (image files; default `<name>.images` next to `DBPath`) and `TrainingDatasetDir` (the training datasets directory: one subdirectory per dataset with a `dataset.toml` manifest, see [Training datasets](/training/datasets#the-datasets-directory-and-manifests); datasets uploaded through the server or the admin UI are saved there too; default a `datasets_training` directory next to `DBPath`), the equivalents of `serve --db` / `--vector-dir` / `--image-dir` / `--training-dataset-dir`; `TrainedModelDeployDir` is the directory trained models' files are fetched to for an [deploy](/training/deploying#fetching-the-weights) (one subdirectory per job, never deleted by gligabao; default a `trained_models` directory next to `DBPath`, i.e. `bin/trained_models`), `serve --trained-model-deploy-dir`.
   </Accordion>
   <Accordion title="TimeseriesProviders">
     The [timeseries providers](/api-reference/timeseries#providers) `remember` can fetch from. Each is a `gligabao.TimeseriesProvider{Name, Description, QueryFormat, Fetch}`: `Description` says in natural language when the provider applies (an LLM reads it), `Fetch` is your callback that returns the series.
@@ -28,8 +28,8 @@ err = gligabao.Serve(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}
   <Accordion title="Hooks">
     Callbacks gligabao invokes, today the system-event hook (called after every `remember`, `recall` and timeseries request, with counts and timings). See [Hooks](/embedding/hooks).
   </Accordion>
-  <Accordion title="TrainedModelExporters">
-    The hooks that export a trained model: each is a `gligabao.TrainedModelExporter{Name, Export}`. gligabao fetches the model's files to a local directory and calls `Export` with it (`POST /v1/gb/training/models/{id}/exports`). See [Model exporting](/training/exporting).
+  <Accordion title="TrainedModelDeployers">
+    The hooks that deploy a trained model: each is a `gligabao.TrainedModelDeployer{Name, Deploy}`. gligabao fetches the model's files to a local directory and calls `Deploy` with it (`POST /v1/gb/training/models/{id}/deployments`). See [Model deploying](/training/deploying).
   </Accordion>
   <Accordion title="AdminExtensions">
     Extensions of the admin UI: each is a `gligabao.AdminExtension{Name, Assets, Handler}`, browser files (an `index.js` ES module that adds views and buttons/blocks to the admin page) and an optional HTTP handler of its own. Served only with the admin UI on. See [Admin UI extensions](/embedding/admin-extensions).
@@ -57,7 +57,7 @@ defer release()
 // ... http.ListenAndServe(":8080", mux), and call release after the host's server has shut down
 ```
 
-- It takes the same `Config` and `ServeOptions` as `Serve` (providers, exporters, hooks, admin extensions, directories, ...). `Mount` does the whole setup itself (databases, sidecar check, remember manager, ...) and returns once the handlers are registered, so call it **before** the host starts serving. It does not block and does not handle SIGINT/SIGTERM: the host owns the process.
+- It takes the same `Config` and `ServeOptions` as `Serve` (providers, deployers, hooks, admin extensions, directories, ...). `Mount` does the whole setup itself (databases, sidecar check, remember manager, ...) and returns once the handlers are registered, so call it **before** the host starts serving. It does not block and does not handle SIGINT/SIGTERM: the host owns the process.
 - All routes are registered as one subtree, `gligabao.MountPrefix` (`/v1/gb/`): the API and, when the config enables them, the [admin UI](/getting-started/configuration#admin-ui) (`/v1/gb/admin/`) and the eval and training endpoints. They are registered per method (`GET /v1/gb/`, `POST /v1/gb/`, ...), so they do not conflict with a host's `GET /`. The host must not have routes of its own under `/v1/gb/`: `Mount` returns an error, not a panic, if it has.
 - gligabao's own `/`, `/health` and `/version` are **not** registered, they belong to the host, and an unknown path under `/v1/gb/` is a plain `404`. The config's `port` is not used.
 - `release` stops the remember manager and closes the databases. It is idempotent, and is also called when `ctx` is cancelled. Call it after the host's server has shut down; after it the mounted routes answer `503`. The `Hooks` and `App` of `ServeOptions` are installed until then.

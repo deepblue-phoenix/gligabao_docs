@@ -91,7 +91,7 @@ The settings of the sidecar itself (`SIDECAR_BACKEND`, `SIDECAR_APP_NAME`, the M
 - [Training datasets](/training/datasets): the dataset format, the training datasets directory and its manifests, listing and uploading on the Go server, how a dataset reaches the sidecar, `TrainingDataset`.
 - [Model sizes](/training/models): 4B, 12B and 31B, backends, GPUs, cost, LoRA settings, troubleshooting.
 - [Trained models](/training/trained-models): where a job's weights are saved, the `gb_trained_models` table, how inference picks a model, and how to add an inference endpoint.
-- [Model exporting](/training/exporting): the exporter hook that receives a trained model's weights as local files, how they are fetched and verified, and the `gb_trained_model_exports` record.
+- [Model deploying](/training/deploying): the deployer hook that receives a trained model's weights as local files, how they are fetched and verified, and the `gb_trained_model_deployments` record.
 - [Evals of trained models](/evals/training): the **Eval** button: a model is asked its training dataset's questions, one per prompt, and an LLM judges the answers in batches.
 - [Sidecar training API](/training/sidecar-api): the REST endpoints the sidecar serves and the Modal web API behind them.
 - [Running on Modal](/training/running): the code layout, the `modal` commands, the sidecar's configuration, tests.

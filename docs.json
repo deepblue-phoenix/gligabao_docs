@@ -42,7 +42,7 @@
               },
               {
                 "group": "Jobs and data",
-                "pages": ["training/jobs", "training/datasets", "training/models", "training/trained-models", "training/exporting", "training/audit"]
+                "pages": ["training/jobs", "training/datasets", "training/models", "training/trained-models", "training/deploying", "training/audit"]
               },
               {
                 "group": "Internals",
@@ -100,7 +100,8 @@
   "redirects": [
     { "source": "/operations/evals", "destination": "/evals/evals" },
     { "source": "/operations/experiments", "destination": "/evals/experiments" },
-    { "source": "/training/evals", "destination": "/evals/training" }
+    { "source": "/training/evals", "destination": "/evals/training" },
+    { "source": "/training/exporting", "destination": "/training/deploying" }
   ],
   "navbar": {
     "primary": {

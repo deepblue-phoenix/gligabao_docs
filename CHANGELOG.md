@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.33.0] - 2026-11-04
+
+### Changed
+- *Model exporting* is now **Model deploying**, for gligabao 0.105.0: the page moved from `/training/exporting` to `/training/deploying` (old links redirect), and the pages that mention it (*Hooks*, *Go library*, *Trained models*, *Sidecar API*, *Overview*) use the new names: the deployer hook (`TrainedModelDeployers`), the `/deployments` and `/deployers` endpoints, `trained_model_deploy_dir`, `gb_trained_model_deployments` and the admin UI's **Deploy** dialog and **Deployers** block.
+
+
 ## [0.32.0] - 2026-11-02
 
 ### Added
