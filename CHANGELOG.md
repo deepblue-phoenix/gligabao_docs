@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.36.0] - 2026-10-27
+
+### Added
+- Guides / Geo: a new page, `/guides/geo`, for gligabao 0.110.0's geo stage of `remember`: turning it on (`geo = true`, `serve --geo`, `ServeOptions.GeoResolver`), what the stage does (candidates, the `detect_geo` LLM call, the resolver, storage), the `geo` list of the response, the `gb_entity_geo` table, the steps in an eval trajectory and how to write a resolver.
+
+### Changed
+- Remember: the pipeline has a geo step (4c), the `geo` field of the response, the `detect_geo` stage in the models, reasoning and ignored-stages lists, the `resolve_geo` stage of the run log and the `gb_entity_geo` table.
+- Configuration (`geo`), Go library (`GeoResolver`), Inferences (`detect_geo` stage), How it works, API overview, the home page and Evals (the geo trajectory steps and the `detect_geo` reasoning level) mention geo.
+- Embedding pages: the paths of `EmbedMount` and `systemEventHook` follow the move into `gligabao_int/gligabao_int_embed` and `gligabao_int/gligabao_int/options.go`.
+
 ## [0.35.1] - 2026-10-26
 
 ### Changed

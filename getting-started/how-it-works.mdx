@@ -31,11 +31,11 @@ Optional inputs: `kind` (`knowledge` or `episode`), `reference_time` (RFC 3339, 
 - An edge that mentions an entity the LLM didn't list creates that entity with type `other`.
 - Sending the same text twice adds a second artifact but no duplicate entities or edges.
 
-Long texts are [chunked](/guides/chunking), images go through the [image pipeline](/guides/images), and `web_search` can [enrich the graph](/guides/web-search) with recent world events.
+Long texts are [chunked](/guides/chunking), images go through the [image pipeline](/guides/images), and `web_search` can [enrich the graph](/guides/web-search) with recent world events. With [geo](/guides/geo) turned on, the entities that are places get coordinates, stored in `gb_entity_geo`.
 
 ### Models per stage
 
-Each LLM-invoking stage of `remember` can run on its own model through the optional `models` object (`extract_graph`, `resolve_edges`, `web_search`, `resolve_series`, `extract_image`). A stage you leave out uses the default. See [Choosing the model of each stage](/api-reference/remember#choosing-the-model-of-each-stage).
+Each LLM-invoking stage of `remember` can run on its own model through the optional `models` object (`extract_graph`, `resolve_edges`, `web_search`, `resolve_series`, `detect_geo`, `extract_image`). A stage you leave out uses the default. See [Choosing the model of each stage](/api-reference/remember#choosing-the-model-of-each-stage).
 
 ## Query
 

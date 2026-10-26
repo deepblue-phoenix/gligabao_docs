@@ -25,6 +25,9 @@ err = gligabao.Serve(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}
   <Accordion title="TimeseriesProviders">
     The [timeseries providers](/api-reference/timeseries#providers) `remember` can fetch from. Each is a `gligabao.TimeseriesProvider{Name, Description, QueryFormat, Fetch}`: `Description` says in natural language when the provider applies (an LLM reads it), `Fetch` is your callback that returns the series.
   </Accordion>
+  <Accordion title="GeoResolver">
+    Finds the coordinates of the places `remember` extracts as entities: any `gligabao.GeoResolver` (`Name`, and `Resolve` that returns the best `GeoPlace` for a `GeoQuery`, or `gligabao.GeoNotFound`). Setting it turns the geo stage of `remember` on, whatever `Config.Geo` says; with `Config.Geo` and no `GeoResolver`, the public Nominatim geocoder of OpenStreetMap is used. See [Geo](/guides/geo#writing-a-resolver).
+  </Accordion>
   <Accordion title="Hooks">
     Callbacks gligabao invokes, today the system-event hook (called after every `remember`, `query` and timeseries request, with counts and timings). See [Hooks](/embedding/hooks).
   </Accordion>
@@ -67,7 +70,7 @@ defer release()
   gligabao has no access control of its own (standalone it is meant to run on a private port). Mounted on a public server, its API and admin UI are as public as that server: use `Wrap` to put the host's authentication in front of them.
 </Warning>
 
-`Serve`, the `gligabao` CLI and the standalone `gligabao_int` are unchanged and keep running on their own port. `gligabao_int/cmd` has `EmbedMount`, the counterpart of its `Embed` that mounts instead of listening.
+`Serve`, the `gligabao` CLI and the standalone `gligabao_int` are unchanged and keep running on their own port. `gligabao_int/gligabao_int_embed` has `EmbedMount`, the counterpart of its `Embed` that mounts instead of listening.
 
 <Note>
   gligabao needs no CGO, so the embedding program can be built with `CGO_ENABLED=0`. A working example with a cobra `serve` command is in the sibling `gligabao_int` project, which uses `replace github.com/deepblue-phoenix/gligabao => ../gligabao` during local development. Programs can pass their own version in `ServeOptions.App`, and get `gligabao.Version()`.

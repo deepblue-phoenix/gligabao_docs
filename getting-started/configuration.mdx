@@ -23,6 +23,7 @@ Configuration is read from `build/gligabao.toml` (override with `--config`).
 | `sidecar_url` | `SIDECAR_URL`, else `http://127.0.0.1:8787` | Base URL of the Python sidecar's REST API, the only service the Go server calls for [training jobs](/training/overview); the sidecar proxies to Modal |
 | `eval` | `false` | Register the eval endpoints |
 | `admin_ui` | `false` | Serve the admin panel |
+| `geo` | `false` | Make `remember` find the places among the entities it extracts and store their coordinates (`gb_entity_geo`), using the public Nominatim geocoder of OpenStreetMap; costs one more LLM call per text and sends the names of places to the geocoder. `serve --geo` turns it on. See [Geo](/guides/geo) |
 
 <Note>
   The chromem store fixes the embedding size when its directory is created, and a Pinecone index must match it. Details: [Vector storage](/guides/vectors).
