@@ -13,7 +13,7 @@ The training code lives in `sidecar/ai_train/` and runs on [Modal](https://modal
 sidecar/ai_train/
   app.py                      # declares the remote functions + CLI entrypoint (provider-neutral)
   config.py                   # TrainConfig, overridable by env vars
-  training_data.py            # the local datasets (bin/datasets_training/*/dataset.toml), for the CLI
+  training_data.py            # the local datasets (build/datasets_training/*/dataset.toml), for the CLI
   requirements_train.txt      # training image (Unsloth stack; 4B, 12B and 31B)
   requirements_infer.txt      # inference-only image (transformers + peft + bitsandbytes; no Unsloth)
   requirements_web.txt        # web API image
@@ -50,7 +50,7 @@ The `modal` CLI, logged in (`pip install modal && modal setup`), for the command
 ```sh
 cd sidecar/ai_train
 modal run app.py                                   # ping: image, volumes, GPU info, whether HF_TOKEN is set
-modal run app.py --action datasets                 # list the local datasets (bin/datasets_training/<name>/dataset.toml)
+modal run app.py --action datasets                 # list the local datasets (build/datasets_training/<name>/dataset.toml)
 modal run app.py --action sync --dataset <name>    # upload a local dataset to the data volume (only if it changed)
 modal run app.py --action validate --dataset <name>  # check the dataset on the data volume
 modal run app.py --action train --dataset <name> --train-steps 100 --model-size 4b   # 4b on A10G, 12b on A100, 31b on A100 80GB

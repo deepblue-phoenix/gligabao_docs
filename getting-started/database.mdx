@@ -10,7 +10,7 @@ db_backend = "postgres"
 postgres_dsn = "postgres://user:password@localhost:5432/gligabao?sslmode=disable"   # or the POSTGRES_DSN env var
 ```
 
-The schema is created on startup. SQLite takes its file from `serve --db` (default `bin/gligabao.db`).
+The schema is created on startup. SQLite takes its file from `serve --db` (default `build/gligabao.db`).
 
 All SQL lives in the backend packages, each with its own schema and dialect; the rest of the code calls routing functions that dispatch to the backend in use:
 

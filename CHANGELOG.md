@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.35.1] - 2026-10-26
+
+### Changed
+- Documents gligabao 0.109.0's move of `bin/` to `build/`: the paths of the config file, databases, binary, datasets, evals and ontology in the getting started, concepts, training, evals, operations and API reference pages.
+
 ## [0.35.0] - 2026-11-07
 
 ### Added
@@ -60,12 +65,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 
 ### Fixed
 - Documents gligabao 0.66.0: *Remember* no longer lists the placeholder table `gb_items`, which was removed.
-- Documents gligabao 0.65.0: *Ontologies* points to the bundled ontology at `bin/ontology/market.owl` (it was `ontology/market.owl`), in the examples and the link.
+- Documents gligabao 0.65.0: *Ontologies* points to the bundled ontology at `build/ontology/market.owl` (it was `ontology/market.owl`), in the examples and the link.
 
 ## [0.28.1] - 2026-10-19
 
 ### Fixed
-- Documents gligabao 0.63.1: the evals are the files of `bin/evals_knowledge/` and `bin/evals_training/`, read from disk (`serve --training-eval-dir`), not `evals/*/evals/` embedded in the binary. Fixed in *Evals of trained models*, *Training data audit*, *Experiments* and the web search guide; `GET /eval-definitions` now says it lists the files of the evals directory.
+- Documents gligabao 0.63.1: the evals are the files of `build/evals_knowledge/` and `build/evals_training/`, read from disk (`serve --training-eval-dir`), not `evals/*/evals/` embedded in the binary. Fixed in *Evals of trained models*, *Training data audit*, *Experiments* and the web search guide; `GET /eval-definitions` now says it lists the files of the evals directory.
 
 ## [0.28.0] - 2026-10-19
 
@@ -150,7 +155,7 @@ All notable changes to the gligabao documentation site are documented here. The 
 ## [0.18.0] - 2026-10-23
 
 ### Changed
-- Documents gligabao 0.47.0: training datasets are found by `dataset.toml` manifests in a training datasets directory (`bin/datasets_training/`, one subdirectory per dataset, with the dataset's generator script next to its data). The Training datasets page has a new section, **The training datasets directory and manifests** (the layout, discovery, every manifest key, the validity rules, problems, names, how to add a dataset), and describes the new list answer (`datasets` and `problems`), the preview's `name`, the record keyed by `<name>.jsonl`, and the upload as a dataset of its own (`409` on a clash). The anchor `#managing-datasets-go-server` is now `#endpoints-go-server`.
+- Documents gligabao 0.47.0: training datasets are found by `dataset.toml` manifests in a training datasets directory (`build/datasets_training/`, one subdirectory per dataset, with the dataset's generator script next to its data). The Training datasets page has a new section, **The training datasets directory and manifests** (the layout, discovery, every manifest key, the validity rules, problems, names, how to add a dataset), and describes the new list answer (`datasets` and `problems`), the preview's `name`, the record keyed by `<name>.jsonl`, and the upload as a dataset of its own (`409` on a clash). The anchor `#managing-datasets-go-server` is now `#endpoints-go-server`.
 - Training jobs, overview, sidecar API and running pages: a job needs a dataset, named in the required `dataset` field (there is no default dataset any more); `modal run app.py --action sync|validate|train` take `--dataset <name>`, and `--action datasets` lists the local ones. The admin UI's training view lists the datasets and the ones that cannot be used.
 - Go library and configuration pages: `TrainingDatasetDir` is the training datasets directory of manifests, default `datasets_training` next to `DBPath` (it was `<name>.training_datasets`).
 

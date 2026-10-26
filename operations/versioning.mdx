@@ -7,7 +7,7 @@ description: "Static builds, the VERSION file, the changelog and the version end
 
 gligabao is pure Go and builds with `CGO_ENABLED=0`: SQLite uses the `modernc.org/sqlite` driver and the default vector store is [chromem-go](https://github.com/philippgille/chromem-go), so no C compiler is needed.
 
-- `./run_build.sh` builds `bin/gligabao`.
+- `./run_build.sh` builds `build/gligabao`.
 - `./run_tests.sh` runs the tests.
 - `docker build .` (or `./run_build_container.sh`) builds a static binary in a container.
 - `docker compose up --build` builds and starts the server and the [Python sidecar](/operations/sidecar) together on one network (see `docker-compose.yml`).
