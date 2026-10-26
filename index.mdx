@@ -15,10 +15,10 @@ gligabao is a small, self-hosted HTTP service. You send it free-form text; it tu
     Build the binary, start the server and remember your first fact in minutes.
   </Card>
   <Card title="How it works" icon="diagram-project" href="/getting-started/how-it-works">
-    Remember, recall and the bi-temporal graph underneath.
+    Remember, query and the bi-temporal graph underneath.
   </Card>
   <Card title="API reference" icon="code" href="/api-reference/overview">
-    Every endpoint: remember, recall, datasets, graph export, ontologies, timeseries.
+    Every endpoint: remember, query, datasets, graph export, ontologies, timeseries.
   </Card>
   <Card title="Embed in Go" icon="golang" href="/embedding/go-library">
     Use gligabao as a library inside your own Go program.
@@ -34,8 +34,8 @@ curl -X POST localhost:7878/v1/gb/remember \
   -d '{"user_id": "u1", "text": "Alice works at Acme and lives in Paris."}'
 ```
 
-```sh Recall
-curl -X POST localhost:7878/v1/gb/recall \
+```sh Query
+curl -X POST localhost:7878/v1/gb/query \
   -H 'content-type: application/json' \
   -d '{"user_id": "u1", "query": "Where does Alice work?"}'
 ```
@@ -45,7 +45,7 @@ curl -X POST localhost:7878/v1/gb/recall \
   <Step title="Remember">
     An LLM extracts *entities* and *edges* (relations such as `works_at`) from the text. Entities are deduplicated, and each fact is anchored to the artifact it came from and records when it was true.
   </Step>
-  <Step title="Recall">
+  <Step title="Query">
     The query finds relevant entities, the surrounding subgraph is expanded by one hop, and an LLM answers using only that context. The response includes the evidence behind the answer.
   </Step>
   <Step title="Store">

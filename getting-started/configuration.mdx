@@ -10,7 +10,7 @@ Configuration is read from `bin/gligabao.toml` (override with `--config`).
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `port` | `7878` | HTTP port |
-| `anthropic_api_key` | `ANTHROPIC_API_KEY` | LLM for remember/recall |
+| `anthropic_api_key` | `ANTHROPIC_API_KEY` | LLM for remember/query |
 | `openai_api_key` | `OPENAI_API_KEY` | Embeddings (without it no vectors are stored) |
 | `pinecone_api_key` | `PINECONE_API_KEY` | Hosted vector store |
 | `db_backend` | `"sqlite"` | `"sqlite"` or `"postgres"` (with `postgres_dsn`), see [Database](/getting-started/database) |
@@ -46,7 +46,7 @@ When a Jev key is set, `remember` first classifies the text as simple/medium/com
 
 ## Eval mode
 
-With `serve --eval` (or `eval = true`) the server also registers `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/recall`. They take the same bodies as the regular endpoints, record the call as an [ATIF](https://github.com/laude-institute/harbor) trajectory, store it as pretty-printed JSON in an `atif/` directory next to the SQLite file, and return the full `trajectory` (and its `trajectory_id`) in the response. They are not registered otherwise, and the regular endpoints never generate trajectories. `go run ./evals/knowledge` runs through these endpoints (`-atif <dir>` also keeps the trajectories as files). See [Evals](/evals/evals).
+With `serve --eval` (or `eval = true`) the server also registers `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/query`. They take the same bodies as the regular endpoints, record the call as an [ATIF](https://github.com/laude-institute/harbor) trajectory, store it as pretty-printed JSON in an `atif/` directory next to the SQLite file, and return the full `trajectory` (and its `trajectory_id`) in the response. They are not registered otherwise, and the regular endpoints never generate trajectories. `go run ./evals/knowledge` runs through these endpoints (`-atif <dir>` also keeps the trajectories as files). See [Evals](/evals/evals).
 
 ## Admin UI
 

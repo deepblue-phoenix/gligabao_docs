@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "Build gligabao, start the server, then remember and recall your first facts."
+description: "Build gligabao, start the server, then remember and query your first facts."
 ---
 
 ## 1. Build and run
@@ -9,7 +9,7 @@ gligabao is pure Go and builds with `CGO_ENABLED=0`, so no C compiler is needed.
 
 ```sh
 ./run_build.sh                      # builds bin/gligabao
-export ANTHROPIC_API_KEY=...        # required for remember/recall
+export ANTHROPIC_API_KEY=...        # required for remember/query
 ./bin/gligabao serve                # listens on :7878 by default
 ```
 
@@ -31,15 +31,15 @@ curl -X POST localhost:7878/v1/gb/remember \
 
 The response contains the `artifact_id`, the extracted entities, the `edges` with their temporal fields and any `invalidated_edges`. See [Remember](/api-reference/remember).
 
-## 3. Recall
+## 3. Query
 
 ```sh
-curl -X POST localhost:7878/v1/gb/recall \
+curl -X POST localhost:7878/v1/gb/query \
   -H 'content-type: application/json' \
   -d '{"user_id": "u1", "query": "Where does Alice work?"}'
 ```
 
-You get an `answer` plus the `evidence` (entities and edges) it relied on. See [Recall](/api-reference/recall).
+You get an `answer` plus the `evidence` (entities and edges) it relied on. See [Query](/api-reference/query).
 
 ## 4. Inspect the graph
 

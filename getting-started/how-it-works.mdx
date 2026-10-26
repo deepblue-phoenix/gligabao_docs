@@ -1,6 +1,6 @@
 ---
 title: "How it works"
-description: "Remember, recall, and the bi-temporal knowledge graph underneath."
+description: "Remember, query, and the bi-temporal knowledge graph underneath."
 ---
 
 ## Remember
@@ -37,9 +37,9 @@ Long texts are [chunked](/guides/chunking), images go through the [image pipelin
 
 Each LLM-invoking stage of `remember` can run on its own model through the optional `models` object (`extract_graph`, `resolve_edges`, `web_search`, `resolve_series`, `extract_image`). A stage you leave out uses the default. See [Choosing the model of each stage](/api-reference/remember#choosing-the-model-of-each-stage).
 
-## Recall
+## Query
 
-`POST /v1/gb/recall` with `{"user_id": "u1", "query": "Where does Alice work?"}`.
+`POST /v1/gb/query` with `{"user_id": "u1", "query": "Where does Alice work?"}`.
 
 <Steps>
   <Step title="Retrieve">
@@ -56,7 +56,7 @@ Each LLM-invoking stage of `remember` can run on its own model through the optio
   </Step>
 </Steps>
 
-If the graph is empty, a fixed "I don't have any information" answer is returned without calling the LLM. Details: [Recall](/api-reference/recall).
+If the graph is empty, a fixed "I don't have any information" answer is returned without calling the LLM. Details: [Query](/api-reference/query).
 
 ## The temporal model
 

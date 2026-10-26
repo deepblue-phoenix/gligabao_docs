@@ -57,7 +57,7 @@
         "groups": [
           {
             "group": "Memory",
-            "pages": ["api-reference/remember", "api-reference/recall", "api-reference/graph"]
+            "pages": ["api-reference/remember", "api-reference/query", "api-reference/graph"]
           },
           {
             "group": "Data",
@@ -101,7 +101,8 @@
     { "source": "/operations/evals", "destination": "/evals/evals" },
     { "source": "/operations/experiments", "destination": "/evals/experiments" },
     { "source": "/training/evals", "destination": "/evals/training" },
-    { "source": "/training/exporting", "destination": "/training/deploying" }
+    { "source": "/training/exporting", "destination": "/training/deploying" },
+    { "source": "/api-reference/recall", "destination": "/api-reference/query" }
   ],
   "navbar": {
     "primary": {

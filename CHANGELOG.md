@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.34.0] - 2026-11-05
+
+### Changed
+- `recall` is now **`query`**, for gligabao 0.106.0: the page moved from `/api-reference/recall` to `/api-reference/query` (the old link redirects), and every page that mentions it uses the new names: `POST /v1/gb/query` and `/v1/gb/eval/query`, `memory_query.Query`, the `query.completed` / `query.failed` events, the `query` stage and type of inferences, the `query` key of the eval `reasoning` and the eval database columns `query_calls` and `query_cost_usd`. "Precision over recall" is unchanged.
+
 ## [0.33.0] - 2026-11-04
 
 ### Changed

@@ -26,7 +26,7 @@ err = gligabao.Serve(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}
     The [timeseries providers](/api-reference/timeseries#providers) `remember` can fetch from. Each is a `gligabao.TimeseriesProvider{Name, Description, QueryFormat, Fetch}`: `Description` says in natural language when the provider applies (an LLM reads it), `Fetch` is your callback that returns the series.
   </Accordion>
   <Accordion title="Hooks">
-    Callbacks gligabao invokes, today the system-event hook (called after every `remember`, `recall` and timeseries request, with counts and timings). See [Hooks](/embedding/hooks).
+    Callbacks gligabao invokes, today the system-event hook (called after every `remember`, `query` and timeseries request, with counts and timings). See [Hooks](/embedding/hooks).
   </Accordion>
   <Accordion title="TrainedModelDeployers">
     The hooks that deploy a trained model: each is a `gligabao.TrainedModelDeployer{Name, Deploy}`. gligabao fetches the model's files to a local directory and calls `Deploy` with it (`POST /v1/gb/training/models/{id}/deployments`). See [Model deploying](/training/deploying).
