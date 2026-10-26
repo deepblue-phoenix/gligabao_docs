@@ -78,7 +78,7 @@
           },
           {
             "group": "Operations",
-            "pages": ["operations/inferences", "operations/sidecar", "operations/versioning"]
+            "pages": ["operations/inferences", "operations/sidecar", "operations/pypi", "operations/versioning"]
           },
           {
             "group": "Appendix",

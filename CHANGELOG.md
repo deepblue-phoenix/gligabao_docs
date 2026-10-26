@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.35.0] - 2026-11-07
+
+### Added
+- Operations / PyPI packages: documents gligabao 0.108.0's two pip packages, `gligabao` (the client) and `gligabao-server` (the binary and its default config, one wheel per platform), and `run_pypi.sh` (build flags per platform, `--arch`, `--upload`). The Building section of Building and versioning links to it.
+
 ## [0.34.0] - 2026-11-05
 
 ### Changed

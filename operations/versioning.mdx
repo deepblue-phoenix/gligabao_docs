@@ -12,6 +12,7 @@ gligabao is pure Go and builds with `CGO_ENABLED=0`: SQLite uses the `modernc.or
 - `docker build .` (or `./run_build_container.sh`) builds a static binary in a container.
 - `docker compose up --build` builds and starts the server and the [Python sidecar](/operations/sidecar) together on one network (see `docker-compose.yml`).
 - `./run_build_sidecar.sh` builds the container image of the [Python sidecar](/operations/sidecar).
+- `./run_pypi.sh` builds and uploads the [PyPI packages](/operations/pypi): the Python client and the server.
 
 ## Versioning
 
