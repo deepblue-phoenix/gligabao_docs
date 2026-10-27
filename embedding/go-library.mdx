@@ -64,7 +64,7 @@ defer release()
 - All routes are registered as one subtree, `gligabao.MountPrefix` (`/v1/gb/`): the API and, when the config enables them, the [admin UI](/getting-started/configuration#admin-ui) (`/v1/gb/admin/`) and the eval and training endpoints. They are registered per method (`GET /v1/gb/`, `POST /v1/gb/`, ...), so they do not conflict with a host's `GET /`. The host must not have routes of its own under `/v1/gb/`: `Mount` returns an error, not a panic, if it has.
 - gligabao's own `/`, `/health` and `/version` are **not** registered, they belong to the host, and an unknown path under `/v1/gb/` is a plain `404`. The config's `port` is not used.
 - `release` stops the remember manager and closes the databases. It is idempotent, and is also called when `ctx` is cancelled. Call it after the host's server has shut down; after it the mounted routes answer `503`. The `Hooks` and `App` of `ServeOptions` are installed until then.
-- `MountOptions.Wrap` wraps the whole handler before it is registered.
+- `MountOptions.Wrap` wraps the whole handler before it is registered. It covers the [MCP](/guides/mcp) endpoint (`/v1/gb/mcp`, when `mcp` is on) as well.
 
 <Warning>
   gligabao has no access control of its own (standalone it is meant to run on a private port). Mounted on a public server, its API and admin UI are as public as that server: use `Wrap` to put the host's authentication in front of them.

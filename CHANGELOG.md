@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.37.0] - 2026-10-27
+
+### Added
+- Guides / MCP: a new page, `/guides/mcp`, for gligabao 0.111.0's MCP server: turning it on (`mcp = true`, `serve --mcp`), the endpoint `/v1/gb/mcp` (streamable HTTP, stateless), how to add it to Claude Code and to a JSON client config, the arguments of the `remember` and `query` tools, how results and errors are returned, the missing authentication and what is not included yet.
+
+### Changed
+- The home page describes gligabao as an MCP/HTTP server and has an MCP card.
+- Configuration (`mcp`), API overview (`/v1/gb/mcp`), Identity (the MCP tools take any `user_id`), Go library (`MountOptions.Wrap` covers the MCP endpoint) and How it works mention MCP.
+
 ## [0.36.0] - 2026-10-27
 
 ### Added

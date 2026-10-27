@@ -31,7 +31,7 @@ Optional inputs: `kind` (`knowledge` or `episode`), `reference_time` (RFC 3339, 
 - An edge that mentions an entity the LLM didn't list creates that entity with type `other`.
 - Sending the same text twice adds a second artifact but no duplicate entities or edges.
 
-Long texts are [chunked](/guides/chunking), images go through the [image pipeline](/guides/images), and `web_search` can [enrich the graph](/guides/web-search) with recent world events. With [geo](/guides/geo) turned on, the entities that are places get coordinates, stored in `gb_entity_geo`.
+Long texts are [chunked](/guides/chunking), images go through the [image pipeline](/guides/images), and `web_search` can [enrich the graph](/guides/web-search) with recent world events. With [geo](/guides/geo) turned on, the entities that are places get coordinates, stored in `gb_entity_geo`. With [MCP](/guides/mcp) turned on, MCP clients can call `remember` and `query` as tools of an MCP server at `/v1/gb/mcp`.
 
 ### Models per stage
 

@@ -46,6 +46,8 @@ A [dataset](/concepts/datasets) is owned by the user who created it, and that ow
 
 Because a user's dataset is looked up by `(user_id, name)`, a user cannot reach another user's data by guessing a dataset name or id. A caller that supplies someone else's `user_id` can, since there is no authentication.
 
+The [MCP](/guides/mcp) tools (`remember`, `query`; off by default) take `user_id` as an argument too: whoever can reach the MCP endpoint can act as any user.
+
 ## Storage
 
 ```
