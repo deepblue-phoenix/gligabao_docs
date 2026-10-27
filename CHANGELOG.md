@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.38.0] - 2026-10-27
+
+### Added
+- Guides / Geo: a new section, "Nearby entities in `query`", documents gligabao 0.117.0: the nearby search is off by default and a request turns it on (`geo_nearby`, or `geo_radius_km`); how the places are found; that a place of the question the resolver finds is stored as an entity with coordinates, so later questions find it in the database; the `nearby` field of the response; and how the radius is set (50 km by default; `geo_radius_km` in the config, or in the request).
+- API reference / Query: the request fields `geo_nearby` and `geo_radius_km`. Getting started / Configuration: the setting `geo_radius_km`.
+
+### Changed
+- Guides / Geo: `query` is no longer described as not using geo.
+
 ## [0.37.0] - 2026-10-27
 
 ### Added
