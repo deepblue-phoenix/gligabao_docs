@@ -4,6 +4,18 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.40.0] - 2026-10-29
+
+### Added
+- API reference / Remember: a new section, "Stage outputs", that documents gligabao 0.122.0: what each stage of a run produced is kept for debugging in the `gb_remember_run_stage_outputs` table (columns, the 64 KiB limit, the `name` and `label` of each step, and the output of every stage), and the new row of that table in the Schema section.
+- API reference / Remember, Admin UI: the **Outputs** button of a stage (the outputs open in a modal, as colour coded JSON), the **?** button that explains each stage (gligabao 0.123.0) and the new endpoint `GET /v1/gb/admin/api/remember-run-outputs`.
+- Evals: the evals are read from the directories of `evals_knowledge_dirs` (more than one, `-evals` overrides them), and the `text` of a `remember` entry can be a list of strings (gligabao 0.121.0).
+
+### Changed
+- Documents gligabao 0.123.1: the Go packages moved to `internal/memory/memory_geo` (was `internal/geo`) and `internal/memory/memory_chunk` (was `internal/chunk`), so the Go examples of the Geo and Chunking guides use `memory_geo.` and `memory_chunk.`.
+- Home: the description says "Minimal Knowledge engine for AI".
+- Evals: the runner is `go run ./internal/evals/knowledge/cmd`.
+
 ## [0.39.0] - 2026-10-28
 
 ### Added
