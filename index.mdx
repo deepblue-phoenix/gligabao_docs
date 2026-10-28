@@ -46,7 +46,7 @@ curl -X POST localhost:7878/v1/gb/query \
     An LLM extracts *entities* and *edges* (relations such as `works_at`) from the text. Entities are deduplicated, and each fact is anchored to the artifact it came from and records when it was true.
   </Step>
   <Step title="Query">
-    The query finds relevant entities, the surrounding subgraph is expanded by one hop, and an LLM answers using only that context. The response includes the evidence behind the answer.
+    The query finds relevant entities and facts, by keywords and by the similarity of their embeddings; the surrounding subgraph of live facts is expanded by one hop, the chunks of long texts that are close to the question are added as passages, and an LLM answers using only that context. The response includes the evidence behind the answer.
   </Step>
   <Step title="Store">
     SQLite (a single file, the default) or PostgreSQL, plus an embedded or hosted vector store.

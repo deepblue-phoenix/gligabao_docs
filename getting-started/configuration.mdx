@@ -11,7 +11,7 @@ Configuration is read from `build/gligabao.toml` (override with `--config`).
 | --- | --- | --- |
 | `port` | `7878` | HTTP port |
 | `anthropic_api_key` | `ANTHROPIC_API_KEY` | LLM for remember/query |
-| `openai_api_key` | `OPENAI_API_KEY` | Embeddings (without it no vectors are stored) |
+| `openai_api_key` | `OPENAI_API_KEY` | Embeddings, **required**: `remember` embeds what it stores and `query` embeds the question; the server does not start without it |
 | `pinecone_api_key` | `PINECONE_API_KEY` | Hosted vector store |
 | `db_backend` | `"sqlite"` | `"sqlite"` or `"postgres"` (with `postgres_dsn`), see [Database](/getting-started/database) |
 | `vector_store` | `"chromem"` | `"chromem"` (embedded) or `"pinecone"` (hosted) |

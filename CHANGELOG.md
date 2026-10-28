@@ -4,6 +4,19 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.39.0] - 2026-10-28
+
+### Added
+- API reference / Query: documents gligabao 0.120.0 and 0.120.1. The retrieval is now in two steps, keywords and similarity: the question is embedded and searched in the entity, edge, chunk and summary vector indexes (cosine similarity of at least 0.75), similar entities join the seeds, similar facts are added with their entities, and the chunks of long texts that are close to the question become passages that are given to the LLM (the best three with the text of the chunk). New response field `evidence.passages` (`artifact_id`, `parent_id`, `index`, `summary`, `text`), the `passages` the LLM cites, a new `502` cause (the question could not be embedded), and the requirement of `OPENAI_API_KEY`.
+- API reference / Query: a new section, "Facts over time and history": only live facts are retrieved (a fact that newer knowledge superseded, with an `expired_at`, never is, however it is found, though its vector stays in the index), a fact that ended without being superseded (`invalid_at` only) is given with it, and what that means for questions about the past.
+- Guides / Vector storage: a new section, "What `query` reads".
+- Evals: the query trajectory has a new `search_vectors` step (the embedding of the question and the matches of each index) before `retrieve_graph`, which now also holds the passages; the example is updated.
+
+### Changed
+- `OPENAI_API_KEY` (`openai_api_key`) is documented as required, not optional: the server does not start without it, because `query` embeds the question as `remember` embeds what it stores. Getting started (Quickstart, Configuration), API reference / Remember, Vector storage.
+- Getting started / How it works, the home page, Concepts / Temporal facts, Artifacts and Datasets, Guides / Chunking, Operations / Inferences (the stages of `query`): `query` is no longer described as keyword-based, as not reading the vectors, or as not using artifact text.
+- API reference / Query: the Request section is in sync with gligabao again (`reasoning` per stage, `models`).
+
 ## [0.38.0] - 2026-10-27
 
 ### Added

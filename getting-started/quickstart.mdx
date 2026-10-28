@@ -10,11 +10,12 @@ gligabao is pure Go and builds with `CGO_ENABLED=0`, so no C compiler is needed.
 ```sh
 ./run_build.sh                      # builds build/gligabao
 export ANTHROPIC_API_KEY=...        # required for remember/query
+export OPENAI_API_KEY=...           # required: embeddings (remember embeds what it stores, query the question)
 ./build/gligabao serve                # listens on :7878 by default
 ```
 
 <Tip>
-  Prefer containers? `docker compose up --build` starts the server on `localhost:7878` and the [Python sidecar](/operations/sidecar) on `localhost:8787`, on one Docker network (the server talks only to the sidecar, which needs Modal tokens to proxy training calls to Modal). Set `ANTHROPIC_API_KEY` (and optionally `OPENAI_API_KEY`) in your shell first; data is kept in the `gligabao-data` volume.
+  Prefer containers? `docker compose up --build` starts the server on `localhost:7878` and the [Python sidecar](/operations/sidecar) on `localhost:8787`, on one Docker network (the server talks only to the sidecar, which needs Modal tokens to proxy training calls to Modal). Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` (both are required) in your shell first; data is kept in the `gligabao-data` volume.
 </Tip>
 
 <Tip>
