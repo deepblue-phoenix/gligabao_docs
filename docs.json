@@ -74,7 +74,7 @@
         "groups": [
           {
             "group": "Embedding in Go",
-            "pages": ["embedding/go-library", "embedding/hooks", "embedding/admin-extensions", "embedding/remember-manager"]
+            "pages": ["embedding/go-library", "embedding/hooks", "embedding/admin-extensions", "embedding/remember-manager", "embedding/pipeline"]
           },
           {
             "group": "Operations",

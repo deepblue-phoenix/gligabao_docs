@@ -4,6 +4,20 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.41.0] - 2026-10-29
+
+### Added
+- Embedding & ops / Pipeline: a new page that documents gligabao 0.124.0 and 0.125.0, the pattern that `remember` and `query` share: the list of stages, the `Fatal` and `Advisory` policies, `Stop` and `Each`, what the runner tells the run log, how inferences are filed under their stage, the run log, the admin views, and how to add a stage or an operation. Linked from the Remember, Query and API overview pages.
+- API reference / Query: a new section, "Run log": every `query` call is recorded in the new table `gb_query_runs` (the question, the status, and for each stage `retrieve_graph`, `detect_geo`, `nearby_geo` and `query` its status, error, times and inferences), the new response field `query_run_id`, and `GET /v1/gb/admin/api/query-runs`. A `query` call is also described as a pipeline of four stages.
+- API reference / Remember: a new section, "How the pipeline is declared", and the new stage status `skipped` in the Run log (a stage the call does not use; a run that succeeded has no stage left `not_started`).
+- Admin UI: the **query** view, the same as the **remember** view over the runs of `query` (and `query_runs` among the slots of the admin extensions).
+
+### Changed
+- The code locations that moved with the pipeline refactor: the pipeline of `remember` is in `internal/memory/memory_remember/remember_pipeline.go` (Chunking), the code of `query` is in `internal/memory/memory_query/query.go`.
+- Operations / Inferences: the run log of `query` also lists the inferences of each stage.
+- Embedding / Remember manager: a queued run has every stage `not_started` until the pipeline passes it.
+- Schema: `gb_remember_runs` accepts `skipped` for a stage and `gb_query_runs` is new; there is no migration, so an existing database has to be recreated.
+
 ## [0.40.0] - 2026-10-29
 
 ### Added
