@@ -23,7 +23,7 @@
           },
           {
             "group": "Concepts",
-            "pages": ["concepts/datasets", "concepts/artifacts", "concepts/temporal", "concepts/identity", "concepts/sessions"]
+            "pages": ["concepts/datasets", "concepts/artifacts", "concepts/temporal", "concepts/temporal-edge-cases", "concepts/edge-events", "concepts/identity", "concepts/sessions"]
           },
           {
             "group": "Guides",

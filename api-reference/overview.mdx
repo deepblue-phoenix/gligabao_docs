@@ -7,7 +7,7 @@ All endpoints require `user_id` (in the JSON body, or the query string for `GET`
 
 | Endpoint | Purpose | Docs |
 | --- | --- | --- |
-| `POST /v1/gb/remember` | Extract a temporal knowledge graph from text and store it; or, with `image`, read an image and store the extraction | [Remember](/api-reference/remember), [Artifacts](/concepts/artifacts), [Temporal facts](/concepts/temporal), [Images](/guides/images), [Chunking](/guides/chunking), [Web search](/guides/web-search), [Geo](/guides/geo), [Pipeline](/embedding/pipeline) |
+| `POST /v1/gb/remember` | Extract a temporal knowledge graph from text and store it; or, with `image`, read an image and store the extraction | [Remember](/api-reference/remember), [Artifacts](/concepts/artifacts), [Temporal facts](/concepts/temporal), [Edge events](/concepts/edge-events), [Images](/guides/images), [Chunking](/guides/chunking), [Web search](/guides/web-search), [Geo](/guides/geo), [Pipeline](/embedding/pipeline) |
 | `POST /v1/gb/timeseries`, `GET /v1/gb/timeseries`, `GET /v1/gb/timeseries/{id}` | Store timeseries and anchor them to artifacts, entities and facts; list and read them. A `remember` request can also supply them, fetch them from the providers, or derive `series_observation` artifacts from them (`timeseries`) | [Timeseries](/api-reference/timeseries) |
 | `POST /v1/gb/query` | Answer a question from the graph, with evidence | [Query](/api-reference/query), [Pipeline](/embedding/pipeline) |
 | `POST /v1/gb/datasets`, `GET /v1/gb/datasets?user_id=`, `DELETE /v1/gb/datasets/{name}?user_id=` | Create, list and (soft) delete datasets | [Datasets](/concepts/datasets) |

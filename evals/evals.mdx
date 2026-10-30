@@ -152,25 +152,62 @@ Every LLM call becomes up to three steps: a `system` step (the prompt; omitted i
 
 ## How the evals use it
 
-`evals/knowledge/main.go` starts an in-process server with eval mode on and runs each case through `/v1/gb/eval/remember` (once per memory, in order) and `/v1/gb/eval/query`. It decodes the `trajectory` from every response and fails the case if one is missing. A case's outcome holds the answer, the failed temporal-fact checks and the trajectories (one per remember, then the query's), so checks can use the steps and costs directly. For now the runner reports the trajectory count, step count and total cost with `-v`.
+The in-process server has geo on: the runner gives it a geo resolver, Nominatim of OpenStreetMap (cached) by default, so `remember` stores the coordinates of the places it finds and `query` finds those of the question (one more LLM call each, and a lookup per place; it needs internet). `-geo=false` turns it off; a program that runs the evals sets `knowledge.Executor.Geo` (nil: off). A failed lookup never fails a case (see [Geo](/guides/geo)).
+
+`internal/evals/knowledge` starts an in-process server with eval mode on and runs each case through `/v1/gb/eval/remember` (once per memory, in order) and `/v1/gb/eval/query`. It decodes the `trajectory` from every response and fails the case if one is missing. A case's outcome holds the answer, the failed temporal-fact checks and the trajectories (one per remember, then the query's), so checks can use the steps and costs directly. For now the runner reports the trajectory count, step count and total cost with `-v`.
+
+### The `geo` eval and `expect_geo`
+
+`build/evals_knowledge/geo.json` has five cases about places: a city (`geo_city`), a city and its country (`geo_city_country`), a landmark (`geo_landmark`), two cities (`geo_two_cities`) and a mountain (`geo_mountain`). Each remembers a sentence, asks a question about it (`expect_contains`, `expect_edges`) and has an `expect_geo` check on what the geo stage stored. `expect_geo` is a list of `{"entity": "Paris", "kind": "city", "country_code": "fr", "latitude": 48.86, "longitude": 2.35, "radius_km": 30}`: the entity (name, case-insensitive) must have a row in `gb_entity_geo`, and each part that is given must hold: its `kind` (what the LLM judged it to be), its `country_code` (case-insensitive) and its coordinates within `radius_km` (default 100) of the given ones (great-circle distance). The LLM decides what is a place and the geo resolver where it is, so the check measures both; the coordinates and the country come from Nominatim and are generous on purpose. A case with `expect_geo` needs geo on in the eval server: with `-geo=false` it is errored, not failed. `-v` prints the places that were stored.
+
+### The `temporal` eval
+
+`build/evals_knowledge/temporal.json` has twenty cases about temporal reasoning and state changes. The entities are symbols (`Entity A`, `Entity B`, ...) and the actions are symbols too (a Σ-link, an Ω-lease, a Ψ-seal, a Ψ-pass, a Λ-grant, a Θ-permit, a Ξ-mandate, the Δ-token, a Φ-guild or Φ-board), but the texts are ordinary prose, so the extractor and the answerer have no world knowledge to lean on: all they can use is what the text says and the dates. The rules of an action (for instance that a Σ-link is exclusive, or that a Λ-grant is valid only while its issuer holds a Λ-charter) are stated in the text itself, as a sentence of the prose.
+
+The cases cover facts that start, end on a stated date, expire after a duration, end when an event happens, are superseded by a later exclusive fact, are renewed or extended, are restated, corrected or only announced, are reported late about an earlier time, or are given in relative dates ("two weeks ago"). Each case remembers one to four texts (each with its `reference_time`) and asks one question "as of" an explicit date, so the answer does not depend on today's date. Because the answer is checked with `expect_contains` (a case-insensitive substring), a question asks for a label (`Entity C`), for a one-word state that no other state contains (`FREE` or `SEALED`, `ACTIVE` or `LAPSED`), or for the labels followed by `COUNT=<number>`, so a wrong set fails on the count. `expect_edges` checks the dates the extraction stored (`valid_at`, `invalid_at`, `ended`, and `superseded` where a later text closes the fact without saying so).
+
+Since superseded facts are not retrieved by `query` ([Temporal edge cases](/concepts/temporal-edge-cases#5-what-query-sees)), a question about a past date is only asked where the fact at that date ended in its own text; questions about a fact that a later text replaced ask about the state after the change. Two cases (`temporal_lease_extended`, `temporal_pass_regranted`) have several facts between the same two entities and so check only the answer.
+
+| case | what it tests |
+|---|---|
+| `temporal_sigma_swap` | An exclusive Σ-link is taken over by a new partner in a later text: the old link must be superseded without the text ever saying that it ended. |
+| `temporal_omega_lease_expiry` | Two leases whose terms are given as durations: the end dates must be computed, and one has run out at the question date while the other has not. |
+| `temporal_delta_token_relay` | The Δ-token is handed over several times across three texts, one hand-over being part of the first text: the last event wins. |
+| `temporal_seal_lifted_resealed` | A Ψ-seal is placed, lifted and placed again, all in one text; the question date falls in the gap between the lift and the second seal. |
+| `temporal_chair_succession` | A one-seat role changes hands twice across three texts; each handover ends the previous holder at its date. |
+| `temporal_backfilled_history` | A later text reports an older link: it must be stored as ended history and must not close the link that is current. |
+| `temporal_restated_then_ended` | A fact is restated by a later text (which must not move its start) and a third text then says that it ended earlier than that text. |
+| `temporal_derived_expiry` | A grant ends not by date but because its issuer's charter was revoked, which the reader has to infer from the rule in the text. |
+| `temporal_permit_windows` | Three permits with windows: one not yet open, one already closed and one open at the question date; the start of a fact may lie after the text. |
+| `temporal_lease_extended` | A lease with a stated end is extended by a later text: at the question date the original term would have run out but the extension has not. |
+| `temporal_correction` | A later text corrects the earlier one: the earlier fact was never true, and the corrected one holds from the original date. |
+| `temporal_partner_swap` | Two Σ-links are dissolved and re-formed crosswise at one instant: four facts change in a single text. |
+| `temporal_mandate_until_event` | A mandate has no date of its own: it ends when an event happens, and the event is told in the same text. |
+| `temporal_announced_change` | A change that is only announced for the future must not end the present fact; the question date is before the announced date. |
+| `temporal_pass_regranted` | A Ψ-pass is granted, revoked and granted anew in three texts about the same two entities; the question date falls between the revocation and the new grant. |
+| `temporal_relative_dates` | Dates given only relative to the date of the report; the reader must resolve them and then compare which link is newest. |
+| `temporal_guild_membership` | Members join and leave a guild over six months in one text, told in the order of the entities rather than of time; the question is a headcount at a date. |
+| `temporal_board_replacements` | A board with two seats is renewed over three texts, each seat replaced by a different entity, so that nobody from the first text is still seated. |
+| `temporal_lease_overlap_boundary` | Three consecutive leases, one starting on the day the previous one ends: the question is about which overlapped in time (touching at an end date is not overlapping). |
+| `temporal_mixed_state_chain` | Four texts that mix an exclusive link broken and replaced, a seal that is lifted and a lease that is renewed; the question counts what is still in force. |
 
 ### Models
 
-An eval case can vary the model of each LLM stage of `remember` (`extract_graph`, `summarize_chunk`, `resolve_edges`, `web_search`, `extract_image`; see [Remember](/api-reference/remember#choosing-the-model-of-each-stage)), to compare models stage by stage. The runner passes them as `models` in every `remember` request of a case, from two places that are combined stage by stage:
+An eval case can vary the model of each LLM stage of `remember` (`extract_graph`, `summarize_chunk`, `resolve_edges`, `web_search`, `extract_image`; see [Remember](/api-reference/remember#choosing-the-model-of-each-stage)) and of the query (`query`, the call that answers the question), to compare models stage by stage. `detect_geo` is a stage of both pipelines (the entities of a text, the places of a question) and one setting applies to both. The runner passes the stages of `remember` as `models` in every `remember` request of a case and `query` and `detect_geo` as `models` of its query request. The settings come from two places that are combined stage by stage:
 
-1. `-models extract_graph=<model>,resolve_edges=<model>` on the command line: the defaults of the whole run (and recorded in the experiment run's `params.models`);
-2. `"models": {"extract_graph": "<model>"}` in a case of an eval: that case only; a stage named here wins over `-models`.
+1. `-models extract_graph=<model>,query=<model>` on the command line: the defaults of the whole run (and recorded in the experiment run's `params.models`);
+2. `"models": {"extract_graph": "<model>", "query": "<model>"}` in a case of an eval: that case only; a stage named here wins over `-models`.
 
-A stage named by neither uses the default model. The query's LLM call is not affected. The model of each LLM step is in the trajectory (`model_name`), the requested `models` are in `extra.input.models`, and the entities and edges a case stores carry the `extract_graph` model as their `model_id`, so the graph of a run shows which model produced it. A runner invocation is a run of an experiment, so comparing models means running the eval once per setting under the same experiment (for instance `-experiment extract-models -models extract_graph=claude-sonnet-4-5`).
+A stage named by neither uses the default model. The model of each LLM step is in the trajectory (`model_name`), the requested `models` are in `extra.input.models`, and the entities and edges a case stores carry the `extract_graph` model as their `model_id`, so the graph of a run shows which model produced it. A runner invocation is a run of an experiment, so comparing models means running the eval once per setting under the same experiment (for instance `-experiment extract-models -models extract_graph=claude-sonnet-4-5`, or `-experiment answer-models -models query=claude-sonnet-4-5` to vary the model that answers). The in-process server of the evals has a [geo resolver](/guides/geo) unless the runner is given `-geo=false`, so `detect_geo` applies to every run by default.
 
 ### Reasoning levels
 
-An eval case can also vary the reasoning (thinking) level of each LLM stage, to see how it affects the results (see [Remember](/api-reference/remember#reasoning)). The stages are `extract_graph`, `summarize_chunk`, `resolve_edges`, `resolve_series`, `detect_geo` and `extract_image` for `remember`, and `query` for the LLM call that answers the question. The levels come from two places that are combined stage by stage:
+An eval case can also vary the reasoning (thinking) level of each LLM stage, to see how it affects the results (see [Remember](/api-reference/remember#reasoning)). The stages are `extract_graph`, `summarize_chunk`, `resolve_edges`, `resolve_series`, `detect_geo` and `extract_image` for `remember`, and `query` for the LLM call that answers the question (`detect_geo` is a stage of the query too, and its level applies to both). The levels come from two places that are combined stage by stage:
 
 1. `-reasoning extract_graph=low,query=medium` on the command line: the defaults of the whole run (recorded in the experiment run's `params.reasoning`);
 2. `"reasoning": {"extract_graph": "low", "query": "medium"}` in a case of an eval: that case only; a stage named here wins over `-reasoning`, as for models (a case controls its own parameters).
 
-The runner sends the `remember` stages as `reasoning` in every `remember` request of the case and `query` as `reasoning` of its query request. A stage named by neither runs with the server's default, which is `none` (no thinking). **Every case of the evals sets all of them explicitly to `none`**, so a run never depends on that default and is the baseline to compare against (a test checks it). So with the shipped evals `-reasoning` changes nothing until the stage is removed from the cases (or the cases are edited, e.g. a copy of the evals passed with `-evals`): the level a comparison varies is the one the case sets.
+The runner sends the `remember` stages as `reasoning` in every `remember` request of the case, and `query` and `detect_geo` as the per-stage `reasoning` of its query request. A stage named by neither runs with the server's default, which is `none` (no thinking). **Every case of the evals sets all of them explicitly to `none`**, so a run never depends on that default and is the baseline to compare against (a test checks it). So with the shipped evals `-reasoning` changes nothing until the stage is removed from the cases (or the cases are edited, e.g. a copy of the evals passed with `-evals`): the level a comparison varies is the one the case sets.
 
 Each LLM call is a [inference](/operations/inferences) with the level it ran with, its tokens (thinking tokens count as output) and its cost, so a comparison can look at both the pass rate and what the thinking cost, per stage.
 
@@ -189,8 +226,8 @@ Because each stage has its own model, an eval run can answer two different quest
 
 What the cases check is what measures precision, so pick the case for the stage:
 
-- `extract_graph` is checked by `expect_edges` (is each expected fact stored between the right entities, with the right `valid_at` / `invalid_at`) and, through the graph it builds, by the query's `expect_contains`. A model that misses a fact, attaches the wrong dates or names an entity differently fails these. For a long text, `chunking_register` checks that facts from the start, middle and end all came out.
-- `resolve_edges` only runs when the new facts have stored candidates to be compared with, so use a case that remembers more than one text about the same entities, like `job_change` (the Acme fact must be closed by the Globex one, and only that one). A model that misses a contradiction leaves the old fact live (`ended` fails); one that flags a contradiction that is not one closes a fact that should stay true; one that misses a duplicate stores it twice.
+- `extract_graph` is checked by `expect_edges` (is each expected fact stored between the right entities, with the right `valid_at` / `invalid_at`). `"ended": true` requires an `invalid_at`; `"superseded": true` also requires an `expired_at`, which is set only when a later text contradicts the fact (see [Temporal edge cases](/concepts/temporal-edge-cases)) and, through the graph it builds, by the query's `expect_contains`. A model that misses a fact, attaches the wrong dates or names an entity differently fails these. For a long text, `chunking_register` checks that facts from the start, middle and end all came out.
+- `resolve_edges` only runs when the new facts have stored candidates to be compared with, so use a case that remembers more than one text about the same entities, like `job_change` (the Acme fact must be closed by the Globex one, and only that one). A model that misses a contradiction leaves the old fact live (`ended` and `superseded` fail); one that flags a contradiction that is not one closes a fact that should stay true; one that misses a duplicate stores it twice.
 - `web_search` is only used by a remember entry with `"web_search": true` (see [Web search](/guides/web-search)).
 - `extract_image` is only used by an image remember, which the runner does not issue yet.
 
@@ -201,9 +238,27 @@ A case can also pin its own models (`"models"` in the eval), for example to run 
 **How do models behave?** Beyond pass or fail, a run keeps what each model did:
 
 - the **trajectories** hold the raw output of every LLM step with its `model_name`, tokens and cost, so you can read how a model extracted (the entities and edges it listed, how it typed and named them, what dates it gave) and what `resolve_edges` decided, side by side with another model's on the same text;
-- the **graph** of every case of every run is kept in its own dataset (`<case>_run<run id>`), and its entities and edges carry the `extract_graph` model as `model_id`, so the graphs two models built from the same text can be opened in the admin UI and compared (more or fewer entities, finer or coarser relations, different validity);
+- the **graph** of every case of every run is kept in its own dataset (`<case>_run<eval run id>`), and its entities and edges carry the `extract_graph` model as `model_id`, so the graphs two models built from the same text can be opened in the admin UI and compared (more or fewer entities, finer or coarser relations, different validity);
 - the **cost** of each case and of the whole run is recorded, so a model can be judged on what it costs for the quality it gives (a cheaper model for `resolve_edges` and a stronger one for `extract_graph`, say), and the steps and tokens show how verbose it is;
 - the **experiment run** records the `models` of the invocation in its `params` (see [Eval experiments](/evals/experiments)), so a result can always be traced back to the setting that produced it. Runs of one experiment can then be compared by their `params`, results, and cost.
+
+## Eval commentary (debugging a failed case)
+
+For a person who runs the evals at a terminal and wants to know *why* a case failed, the runner can have an LLM read the failure together with the case's ATIF trajectories. It is behind a flag, so automated runs are not affected:
+
+```sh
+./run_evals.sh -commentary [-commentary-model claude-sonnet-5-5] [-e eval] [case ...]
+```
+
+When a case fails (a check did not hold) or errors, and `-commentary` is on:
+
+1. The failure log is printed as usual, followed by `Run commentary on this failure? [y/N]`. `y` or `yes` runs the commentary; `n`, `no` or Enter (the default) skips it and the run goes on.
+2. The LLM gets: the case (its input as it ran and what it expects, its `models` / `reasoning` and the run's), the failed checks, the error if there was one, the answer, the checks that held, and the ATIF trajectories of the case (every remember, then the query). It is asked for the most likely cause, the stage and step ids where the behaviour diverges, the evidence and a suggestion. The trajectories are sent as compact JSON; if they are longer than about 400 KB the longest strings in them are cut (marked `...[N bytes cut]`) until they fit.
+3. The commentary is printed under the failure log, and then `Press Enter to continue ...`: the run is paused until the person confirms, so there is time to read it. A failed LLM call is printed instead of the commentary (and also waits for Enter); it never changes the result of the case.
+
+The model is `-commentary-model`, default `claude-sonnet-5-5` (not the default model of the rest of gligabao). Under each commentary the runner prints its tokens and cost and the running total of the commentaries of the run (`tokens: 1200 in, 300 out; cost $0.0054; commentary total this run: $0.0108 (2)`), and the final summary of the run repeats the total (`commentary: 2, cost $0.0108`). The cost comes from the price table (`ai.DefaultPrices`, which has `claude-sonnet-5-5`, `claude-opus-5-5` and `claude-fable-5-1`; a model without a price shows `cost unknown`) and is not part of the case's or the run's cost. Cases that were cancelled (Ctrl-C) are never offered a commentary, and Ctrl-C at the prompt stops the run as usual. The commentary does not apply to the training evals.
+
+Because the runner blocks on the answer, `-commentary` needs a terminal on stdin: with stdin piped or redirected the runner stops at startup with an error instead of waiting forever. From Go, set `knowledge.Executor.Commentary` (a `*knowledge.Commentary` with the `LLM`, `Model` and the `In` reader the answers are read from); nil (the default) never asks anything. The code is `internal/evals/knowledge/commentary.go`.
 
 ## Generating traces in code
 

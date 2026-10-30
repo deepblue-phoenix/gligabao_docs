@@ -5,7 +5,7 @@ description: "How gligabao tracks when facts were true and when it learned them,
 
 gligabao follows the bi-temporal model of [Graphiti](https://github.com/getzep/graphiti).
 
-Code: `internal/memory/memory.go` (`Extract`, `Remember`, `Store`), `internal/memory/temporal.go` (reconciliation), `internal/db/graph/{sqlite,postgres}/db_schema.go` (tables).
+Code: `internal/memory/memory.go` (`Extract`, `Remember`, `Store`), `internal/memory/temporal.go` (reconciliation), `internal/db/graph/{sqlite,postgres}/db_schema.go` (tables). What a call did to each fact is logged in [Edge events](/concepts/edge-events).
 
 ## Artifacts
 
@@ -31,7 +31,7 @@ Each edge also has `artifact_id`, the artifact it was extracted from. Every arti
 
 All timestamps are RFC 3339 UTC strings (`2006-01-02T15:04:05Z`).
 
-`valid_at` is always set: it is the date the text states, or the artifact's `valid_at` when the text gives none ("Alice works at Acme", "Alice started working at Globex"). `invalid_at` is only set when the text says the fact ended ("Alice left Acme in June 2024"). Partial dates use their earliest instant (a month becomes the 1st, a year becomes 1 January). Unparseable dates count as missing, and an `invalid_at` that is not after `valid_at` is discarded.
+`valid_at` is always set: it is the date the text states, or the artifact's `valid_at` when the text gives none ("Alice works at Acme", "Alice started working at Globex"). `invalid_at` is only set when the text says the fact ended ("Alice left Acme in June 2024"). Partial dates use their earliest instant (a month becomes the 1st, a year becomes 1 January). Unparseable dates count as missing. If the text gives an end but the start is not before it (for example a start defaulted to the reference time, which is later), the end is kept and `valid_at` is set equal to `invalid_at`: an empty span meaning "start unknown, ended then". The special cases (ended facts, moves, planned changes, duplicates, earlier information) are listed in [Temporal edge cases](/concepts/temporal-edge-cases).
 
 There is no uniqueness on (source, target, relation): a fact can end and later become true again, which is a new row.
 
@@ -67,6 +67,10 @@ Example: "Alice works at Acme" (artifact at 2023-01-01), then "Alice started wor
 | 1 | Alice works at Acme. | 2023-01-01 | 2024-03-01 | (time of the second `remember`) |
 | 2 | Alice works at Globex. | 2024-03-01 | | |
 
+## What a call did to the facts
+
+`gb_edges` only holds the final state of a fact. To see how one `remember` call changed it, `storeEdges` also appends to the **edge event log**, `gb_edge_events`, in the same transaction: one row for each fact the call created, confirmed, ended, invalidated or superseded, with the fact's `invalid_at` before and after. The table, the events and how to read them are in [Edge events](/concepts/edge-events); the admin UI plots them ([Remember](/api-reference/remember#admin-ui)).
+
 ## Query
 
 `query` sends every retrieved edge to the LLM with its `valid_at` and `invalid_at` plus the current time, but only live ones: an edge that newer knowledge superseded (it has an `expired_at`, as the closed Acme edge of the example above) is never retrieved, so "Where does Alice work now?" is answered from the Globex edge and a question about the past can no longer be answered from the superseded Acme edge. An edge that has an `invalid_at` but no `expired_at` (a fact that is known to have ended) is still sent, and can answer history questions. The model is told that edges without `invalid_at` are still true. Details: [Facts over time and history](/api-reference/query#facts-over-time-and-history). Evidence edges carry the temporal fields too.
@@ -75,6 +79,10 @@ Example: "Alice works at Acme" (artifact at 2023-01-01), then "Alice started wor
 
 - Any failing LLM step (extraction, resolve) returns `502` and stores nothing.
 - `remember` makes 1 LLM call, or 2 when there are stored facts to compare against.
+
+## Edge cases
+
+The date rules for special cases (a fact with an end but no start, moves and replacements, planned changes, ended versus superseded facts, what `query` sees) are in one place: [Temporal edge cases](/concepts/temporal-edge-cases).
 
 ## Limitations
 

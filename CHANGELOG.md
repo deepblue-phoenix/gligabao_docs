@@ -4,6 +4,19 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.46.0] - 2026-11-02
+
+### Added
+- Concepts / Edge events: a new page for the edge event log `gb_edge_events` (gligabao 0.141.0 and 0.141.1): its columns, the five events (`created`, `confirmed`, `ended`, `invalidated`, `superseded`) and when each is written, an example, how to read it and its limitations. Added to the Concepts group in the navigation.
+- Concepts / Temporal edge cases: a new page (gligabao 0.140.0) with the date rules of `remember` and `query` in special cases: facts with an end but no start, moves and replacements, planned changes, duplicates, information about an earlier time, and what `query` sees.
+- API reference / Remember: the **Temporal changes** plot of the remember runs view in the admin UI and its endpoint `GET /v1/gb/admin/api/remember-run-temporal`, and the `gb_edge_events` table in the schema.
+- Evals: the `geo` eval and `expect_geo`, the `temporal` eval (20 cases, gligabao 0.140.1) with a table of its cases, and the new section Eval commentary (the flags `-commentary` and `-commentary-model`, gligabao 0.138.0, 0.139.0).
+
+### Changed
+- Concepts / Temporal facts and API reference / Remember: an `invalid_at` that is not after `valid_at` is no longer dropped; the end is kept and `valid_at` is moved back to it (gligabao 0.140.0). Links to the two new pages.
+- Evals: `expect_edges` has `"ended"` (an `invalid_at`) and `"superseded"` (also an `expired_at`); the sections on models, reasoning levels and the runner are synced with gligabao's `docs/evals/knowledge.md`.
+- API reference / Endpoints overview: the `remember` row links to Edge events.
+
 ## [0.45.0] - 2026-11-02
 
 ### Added
