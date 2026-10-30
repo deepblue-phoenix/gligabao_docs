@@ -26,7 +26,7 @@ Configuration is read from `build/gligabao.toml` (override with `--config`).
 | `admin_ui` | `false` | Serve the admin panel |
 | `geo` | `false` | Make `remember` find the places among the entities it extracts and store their coordinates (`gb_entity_geo`), using the public Nominatim geocoder of OpenStreetMap; costs one more LLM call per text and sends the names of places to the geocoder. `serve --geo` turns it on. See [Geo](/guides/geo) |
 | `geo_radius_km` | `50` | The default radius in kilometers of the nearby search of `query` (with geo on, and only when a request asks for it with `geo_nearby` or `geo_radius_km`, which overrides it). It does not turn the search on. At most 20015. See [Geo](/guides/geo#nearby-entities-in-query) |
-| `mcp` | `false` | Serve `remember` and `query` as MCP tools at `/v1/gb/mcp` (streamable HTTP), so MCP clients such as Claude Desktop or Claude Code can use gligabao as a memory. **No authentication**: enable it only on a trusted network. `serve --mcp` turns it on. See [MCP](/guides/mcp) |
+| `mcp` | `false` | Serve `remember` and `query` (and the three tools of the [research agents](/guides/research)) as MCP tools at `/v1/gb/mcp` (streamable HTTP), so MCP clients such as Claude Desktop or Claude Code can use gligabao as a memory. **No authentication**: enable it only on a trusted network. `serve --mcp` turns it on. See [MCP](/guides/mcp) |
 
 <Note>
   The chromem store fixes the embedding size when its directory is created, and a Pinecone index must match it. Details: [Vector storage](/guides/vectors).

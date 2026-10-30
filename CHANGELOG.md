@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.43.0] - 2026-11-02
+
+### Added
+- Guides / Research agents: a new page that documents gligabao 0.128.0 and 0.128.1: starting a deep-research agent on a topic (`POST /v1/gb/research`, the MCP tool `research_start`, `gligabao research start`), following it (`GET /v1/gb/research` and `/{id}`, `research_list`, `research_get`, `research ls|get`), the runs and the states stored in the new tables `gb_agent_research_runs` and `gb_agent_research_states`, the limit of 3 agents working at once per user, the cost, and how the agents are run. Added to the Guides group in the navigation.
+- Guides / The deep-research agent: a new page about the agent itself (gligabao 0.127.0 to 0.128.1): its tool-calling loop, its prompt, the tools `web_search` and `fetch_url`, how every agent is isolated (a goroutine, one struct and an HTTP client of its own), its limits and what a run costs.
+- API reference / Endpoints overview: the three research endpoints.
+- Guides / MCP and Guides / CLI: the tools `research_start`, `research_list` and `research_get`, and the commands `research start`, `research ls` and `research get`.
+- Getting started / Configuration: the `mcp` setting says that the research tools are served too.
+- Home page: a card for the research agents.
+
 ## [0.42.0] - 2026-10-30
 
 ### Added

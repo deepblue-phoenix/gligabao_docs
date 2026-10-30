@@ -13,7 +13,8 @@ All endpoints require `user_id` (in the JSON body, or the query string for `GET`
 | `POST /v1/gb/datasets`, `GET /v1/gb/datasets?user_id=`, `DELETE /v1/gb/datasets/{name}?user_id=` | Create, list and (soft) delete datasets | [Datasets](/concepts/datasets) |
 | `GET /v1/gb/datasets/{name}/graph?user_id=` | Export a dataset's whole graph as JSON | [Graph export](/api-reference/graph) |
 | `POST /v1/gb/ontologies`, `PUT /v1/gb/ontologies/{name}` | Load an OWL ontology (RDF/XML), or update the one stored under a name (merge or replace) | [Ontologies](/api-reference/ontologies) |
-| `/v1/gb/mcp` | [MCP](https://modelcontextprotocol.io) server (streamable HTTP) with `remember` and `query` as tools; off by default (`mcp = true` / `serve --mcp`), no authentication | [MCP](/guides/mcp) |
+| `POST /v1/gb/research`, `GET /v1/gb/research`, `GET /v1/gb/research/{id}` | Start a deep-research agent on a topic (it searches the web and reads pages in the background and ends with a report), list the agents (the active ones only, if asked), and read one with the states it went through; also `research_start`, `research_list` and `research_get` over MCP and `gligabao research` | [Research agents](/guides/research), [The deep-research agent](/guides/deep-research-agent) |
+| `/v1/gb/mcp` | [MCP](https://modelcontextprotocol.io) server (streamable HTTP) with `remember` and `query` (and the three research tools) as tools; off by default (`mcp = true` / `serve --mcp`), no authentication | [MCP](/guides/mcp) |
 | `GET /health` | Health check | |
 | `GET /version` | Version (and git commit) of the running binary | [Versioning](/operations/versioning) |
 
