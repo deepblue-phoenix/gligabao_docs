@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.45.0] - 2026-11-02
+
+### Added
+- Guides / Sub-agents and messages: documents gligabao 0.131.0: the reason every sub-agent is spawned with (`reason` in `spawn_subagent`, stored on the run), the new `list_siblings` tool that shows a sub-agent its siblings and their reasons, and a new Prompts section (the prompts are Markdown files in `internal/agent/prompts/`; what each part says and who gets it, including the policy to spawn only when really warranted).
+
+### Changed
+- Guides / Research agents and Guides / The deep-research agent: the `reason` of a run, the `list_siblings` tool (and the `messaging` state for it), `agent.Team` with five methods, and the prompts in their own files.
+- Home page (`index`): gligabao is described as an MCP/HTTP/CLI server.
+
 ## [0.44.0] - 2026-11-02
 
 ### Added
