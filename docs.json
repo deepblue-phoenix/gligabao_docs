@@ -27,7 +27,7 @@
           },
           {
             "group": "Guides",
-            "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/geo", "guides/mcp", "guides/cli", "guides/research", "guides/deep-research-agent", "guides/vectors"]
+            "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/geo", "guides/mcp", "guides/cli", "guides/research", "guides/deep-research-agent", "guides/subagents", "guides/vectors"]
           },
           {
             "group": "Evals",

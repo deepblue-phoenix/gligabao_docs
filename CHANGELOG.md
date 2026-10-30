@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.44.0] - 2026-11-02
+
+### Added
+- Guides / Sub-agents and messages: a new page that documents gligabao 0.130.0: a research agent spawning sub-agents (`spawn_subagent`, `wait_subagents`), how sub-agents are tracked (`parent_id` and `name` on a run, `GET /v1/gb/research?parent_id=`), the limits (5 per agent, 10 per research, 2 levels), what happens when an agent ends, messages between sibling sub-agents (`send_message`, `read_messages`), who can message whom, and the replaceable message system (`Messenger`, Go channels). Added to the Guides group in the navigation.
+- Guides / Research agents: a new section on the knowledge base (the tools `remember` and `query`, and the `sync` flag that toggles whether `remember` blocks; gligabao 0.129.0), a section on sub-agents, the option `dataset`, the filter `parent_id`, and the new states `querying`, `remembering`, `spawning`, `waiting` and `messaging`.
+- Guides / The deep-research agent: the tools `query` and `remember` (and the sub-agent tools in the tools table), what they cost, the prompt for the knowledge base, `agent.Knowledge`, and a section on sub-agents.
+- Guides / MCP and Guides / CLI: the `dataset` argument of `research_start` and the flag `-d` of `research start`.
+- Embedding & ops / Remember manager: research agents are senders too.
+- API reference / Endpoints overview and the home page card: research agents work with the knowledge base and spawn sub-agents.
+
 ## [0.43.0] - 2026-11-02
 
 ### Added
