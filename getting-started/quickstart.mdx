@@ -50,6 +50,14 @@ curl 'localhost:7878/v1/gb/datasets/main/graph?user_id=u1'
 
 See [Graph export](/api-reference/graph).
 
+## 5. Or use the CLI
+
+```sh
+./build/gligabao query "Where does Alice work?"
+```
+
+The CLI commands (`remember`, `query`, `dataset`, `api`, ...) send the same requests as the REST API and start a local daemon if none is running, so an agent can use gligabao without HTTP calls. See [CLI](/guides/cli).
+
 ## Next steps
 
 <CardGroup cols={2}>

@@ -10,6 +10,7 @@ Configuration is read from `build/gligabao.toml` (override with `--config`).
 | Key | Default | Purpose |
 | --- | --- | --- |
 | `port` | `7878` | HTTP port |
+| `host` | empty (every interface) | Address to listen on, e.g. `127.0.0.1` for this machine only. `serve --host` sets it. The [CLI](/guides/cli)'s local daemon listens on `127.0.0.1` |
 | `anthropic_api_key` | `ANTHROPIC_API_KEY` | LLM for remember/query |
 | `openai_api_key` | `OPENAI_API_KEY` | Embeddings, **required**: `remember` embeds what it stores and `query` embeds the question; the server does not start without it |
 | `pinecone_api_key` | `PINECONE_API_KEY` | Hosted vector store |

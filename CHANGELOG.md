@@ -4,6 +4,13 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.42.0] - 2026-10-30
+
+### Added
+- Guides / CLI: a new page that documents gligabao 0.126.0: the commands `remember`, `query`, `dataset`, `api`, `status` and `stop`, the local daemon the first command starts (on `127.0.0.1`, without authentication), where its config and data live (`~/.gligabao`), `--server`, `--user` and `--json`, the JSON output and the exit codes. Linked from the home page, the Quickstart (a new step 5) and the Query page; added to the Guides group in the navigation.
+- API reference / Query: the new request field `evidence_only` and a new section, "Retrieval only", for a call that retrieves the evidence without asking the LLM to write the answer.
+- Getting started / Configuration: the new setting `host` (and `serve --host`), the address to listen on.
+
 ## [0.41.0] - 2026-10-29
 
 ### Added
