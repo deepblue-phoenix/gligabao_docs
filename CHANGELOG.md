@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.46.1] - 2026-10-31
+
+### Changed
+- Evals (the three pages Evals and ATIF trajectories, Eval experiments and Evals of trained models) are synced with gligabao's `docs/evals/` as of gligabao 0.143.2: the data model is now the `gb_eval_defs`, `gb_case_defs`, `gb_experiment_runs`, `gb_eval_runs`, `gb_case_runs` tables with their `_meta_knowledge` / `_meta_training` tables (status is a lifecycle, the verdict `pass` or `fail` is separate), the Go API is `runner` / `db.Store`, and the training eval and experiments sections follow it.
+- Evals: the runner names an experiment without `-experiment` after the eval picked with `-eval`, else with the start time, instead of `default`; the training runner also is a run of an experiment (`-experiment`, `-experiment-desc`) (gligabao 0.143.0). Case names are unique within an eval only; a name shared by evals needs `-eval` (gligabao 0.143.2).
+- Evals: the `temporal` eval uses everyday words instead of Greek-symbol relations (new case names and the answer `SUSPENDED`, gligabao 0.142.1), and has a manifest, `build/evals_knowledge/temporal.md`, that every knowledge eval is to have (gligabao 0.142.2).
+
+### Added
+- Evals / Eval experiments: the **View temporal changes** button of an eval case in the admin UI and its endpoint `GET /v1/gb/admin/api/evals/case_runs/{id}/temporal` (gligabao 0.142.0).
+
 ## [0.46.0] - 2026-11-02
 
 ### Added
