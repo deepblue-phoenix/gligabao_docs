@@ -3,7 +3,13 @@ title: "Identity"
 description: "Every request to gligabao says which user it acts for, with a user_id."
 ---
 
-Every request to gligabao says which user it acts for, with a `user_id`. gligabao does not authenticate users: `user_id` is an opaque string that the calling application supplies and is trusted to get right. Put gligabao behind your own auth layer and pass the authenticated user's ID.
+Every request to gligabao says which user it acts for, with a `user_id`. Without the `Auth` hook gligabao does not authenticate users: `user_id` is an opaque string that the calling application supplies and is trusted to get right. Put gligabao behind your own auth layer and pass the authenticated user's ID.
+
+## With the `Auth` hook
+
+A program that embeds gligabao can set `ServeOptions.Auth` (see [Hooks](/embedding/hooks#auth)). The caller then sends an API key (`Authorization: Bearer <key>`) instead of a `user_id`: the hook maps the key to a user, and the request acts as that user, replacing any `user_id` it carries. A missing or rejected key is a `401`. Everything below about `user_id` (format, ownership) is unchanged, it is just not the caller that chooses it any more. The Python client works this way: it reads the key from `GLIGABAO_API_KEY`.
+
+The [MCP](/guides/mcp) tools (`remember`, `query`; off by default) take `user_id` as an argument and are not covered by the `Auth` hook: whoever can reach the MCP endpoint can act as any user.
 
 ## Passing `user_id`
 
@@ -45,8 +51,6 @@ A [dataset](/concepts/datasets) is owned by the user who created it, and that ow
 - The default dataset `main` is per user, and is created by that user's first `remember`.
 
 Because a user's dataset is looked up by `(user_id, name)`, a user cannot reach another user's data by guessing a dataset name or id. A caller that supplies someone else's `user_id` can, since there is no authentication.
-
-The [MCP](/guides/mcp) tools (`remember`, `query`; off by default) take `user_id` as an argument too: whoever can reach the MCP endpoint can act as any user.
 
 ## Storage
 

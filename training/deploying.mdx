@@ -3,11 +3,9 @@ title: "Model deploying"
 description: "How a trained model is handed to your code: the deployer hook, how gligabao fetches and verifies the weights, the gb_trained_model_deployments record, the API and the limits."
 ---
 
-`internal/training/deploy.go`, `internal/training/db/`, `internal/api/training/models.go`, `internal/sys/sidecar/`, `gligabao.go`
-
 Deploying a trained model means handing its weights to code of yours. gligabao does the part that is the same for everybody, getting the weights from where they were trained onto the local disk and checking them, and calls a **hook** with the result: a *deployer*, a Go callback registered by the program that embeds gligabao. What the deployer does with the files (upload them to a service, copy them to a bucket, convert them to another format, ...) is its own business; gligabao has no built-in destination.
 
-This page describes how deploying works inside and the hook's contract. The hook's entry in the list of all hooks is [Hooks](/embedding/hooks#trained-model-deployers); the trained models themselves (the `gb_trained_models` table, where the weights live) are in [Trained models](/training/trained-models).
+This page describes how deploying works inside and the hook's contract. The hook's entry in the list of all hooks is [Hooks](/embedding/hooks#trained-model-deployers); the trained models themselves (the `gb_trained_models` table, where the weights live) are in [Sidecar training API](/training/trained-models).
 
 Deploying is part of the training API: it is there only when the server runs in training mode (`--training`) and, to fetch the weights, with an active sidecar.
 
@@ -19,7 +17,7 @@ POST /v1/gb/training/models/{id}/deployments   {"deployer": "<name>", "options":
   2. find the deployer by name, check the options            400 if none is registered, the name is unknown or the options are bad
   3. record the deployment in gb_trained_model_deployments           status "running"
   4. fetch the model's files from the sidecar into Dir       each file verified (size, sha256)
-  5. call Deploy(ctx, DeployTrainedModelRequest)             your code; the request waits for it
+  5. call Deploy(ctx, DeployTrainedModelRequest)             your code; the request waits for it; it reports progress with req.Update
   6. update the record                                       status "completed" (ref, details) or "failed" (error)
   7. emit the system event training.model_deploy.completed / .failed
   8. answer 200 with the stored deployment                       502 if step 4 or 5 failed
@@ -59,7 +57,7 @@ err := gligabao.Serve(ctx, cfg, gligabao.ServeOptions{
 |---|---|
 | `gligabao.TrainedModelDeployer` | `Name`, `Description` (optional, shown in the admin UI), `Deploy` |
 | `gligabao.DeployTrainedModelFunc` | `func(ctx context.Context, req DeployTrainedModelRequest) (DeployTrainedModelResult, error)`, the type of `Deploy` |
-| `gligabao.DeployTrainedModelRequest` | `DeployID`, `Model`, `Dir`, `Options` |
+| `gligabao.DeployTrainedModelRequest` | `DeployID`, `Model`, `Dir`, `Options`, `Update` |
 | `gligabao.DeployTrainedModelResult` | `Ref`, `Details` |
 
 ### What `Deploy` receives
@@ -70,6 +68,22 @@ err := gligabao.Serve(ctx, cfg, gligabao.ServeOptions{
 | `Model` | the trained model (`gligabao.TrainedModel`): `ID`, `Name`, `JobID`, `BaseModel`, `ModelSize`, `Dataset`, `NumExamples`, `NumTrainSteps`, `FinalLoss`, `Params`, `Path`, and `Files` (`gligabao.TrainedModelFile`: `Path`, `SizeBytes`, `SHA256`), ... |
 | `Dir` | the absolute path of a local directory that holds the model's files, at the paths `Model.Files` lists, relative to it |
 | `Options` | the `options` object of the request, unchanged, as a `map[string]any` (`nil` if the request gave none) |
+| `Update` | `func(message string)`: reports what the deployer is doing (see [Progress updates](#progress-updates)); never `nil` |
+
+### Progress updates
+
+A deployment can take minutes, so every deployer gets `req.Update`, a function to say what it is doing as it goes:
+
+```go
+req.Update("uploading the archive to S3")
+// ... the upload ...
+req.Update("waiting for the import job to finish")
+```
+
+- A message is a short plain-text line (steps, not bytes). Blank messages are ignored, messages longer than **500** characters are cut, and only the newest **200** are kept.
+- Messages are for display and are **not stored**: they are kept in memory while the deployment runs and shown by the admin UI (they are in `updates` of `GET .../deployments` for a running deployment, with their times), and the answer of the `POST` that ran the deployment has them too. Once it is over they are gone (a restart loses them as well). What must survive belongs in the result's `Details`.
+- gligabao adds its own messages around the deployer's: `Fetching the model's N files from the sidecar`, `Files ready, running the <name> deployer` and, at the end, `Completed` or `Failed: <error>`.
+- Safe for concurrent use. Calls after `Deploy` has returned are ignored.
 
 ### What `Deploy` returns
 
@@ -100,7 +114,7 @@ Deployers are sorted by name; each one registered is logged at startup. With no 
 
 The weights of a trained model live on the sidecar's storage (Modal: the models volume), not on the server. Before it calls the deployer, gligabao copies them to the server's disk. This is the part of deploying that is the same for every deployer.
 
-- **Where.** `<trained model deploy dir>/<job id>`, an absolute path (`Dir`). The deployment directory is `serve --trained-model-deploy-dir` (`ServeOptions.TrainedModelDeployDir`); the default is a `trained_models` directory next to the database file (`build/trained_models`). There is one subdirectory per training job, so models never mix. A job ID that is not usable as a directory name is refused (`400`).
+- **Where.** `<trained model deploy dir>/<job id>`, an absolute path (`Dir`). The deployment directory is `trained_model_deploy_dir` in the config file, overridden by `serve --trained-model-deploy-dir` (or `ServeOptions.TrainedModelDeployDir`); the default is a `trained_models` directory next to the database file (`build/trained_models`). There is one subdirectory per training job, so models never mix. A job ID that is not usable as a directory name is refused (`400`).
 - **What.** Every file in the model's `files` (the list recorded when the job completed), at its recorded relative path; nested paths are allowed. A path that is absolute, contains `..` or uses a backslash is refused.
 - **How.** One `GET /models/file?model_path=trained/<job id>&file=<path>` request per file to the sidecar, which streams the raw bytes out of the volume (see [Sidecar training API](/training/sidecar-api#fetching-the-files-of-a-model)); the file is never held in memory.
 - **Verified.** Each file must have exactly the recorded size and the recorded sha256 (a model with no sha256 recorded for a file is checked by size only). A mismatch fails the deployment; nothing is deployed from unverified bytes.
@@ -133,7 +147,7 @@ The table exists on SQLite and PostgreSQL and is created automatically. A row th
 
 | Endpoint | |
 |---|---|
-| `POST /v1/gb/training/models/{id}/deployments` | Body `{"deployer": "<name>", "options": {...}}`. `deployer` is required (the error lists the registered names); `options` is a free-form JSON object of at most 64 KB that reaches the hook unchanged. Fetches the files, calls the deployer, waits, and answers `200` with the stored deployment (`id`, `trained_model_id`, `deployer`, `options`, `status` `completed`, `dir`, `ref`, `details`, `error`, `duration_ms`, `created_at`, `completed_at`). |
+| `POST /v1/gb/training/models/{id}/deployments` | Body `{"deployer": "<name>", "options": {...}}`. `deployer` is required (the error lists the registered names); `options` is a free-form JSON object of at most 64 KB that reaches the hook unchanged. Fetches the files, calls the deployer, waits, and answers `200` with the stored deployment (`id`, `trained_model_id`, `deployer`, `options`, `status` `completed`, `dir`, `ref`, `details`, `error`, `updates`, `duration_ms`, `created_at`, `completed_at`). `updates` is `[{"time", "message"}]`, not stored (see [Progress updates](#progress-updates)). |
 | `GET /v1/gb/training/deployers` | `{"deployers": [{"name": "...", "description": "..."}]}`: the registered deployers, sorted by name (empty if none). The admin UI's *Deployers* block shows them. |
 | `GET /v1/gb/training/models/{id}/deployments[?limit=]` | `{"deployments": [...]}`: the stored deployments of the model, newest first, failed ones too (default 100, at most 500). |
 
@@ -156,7 +170,7 @@ $ curl -X POST localhost:7878/v1/gb/training/models/3/deployments \
 
 ## Admin UI
 
-In the admin UI's *Training* view, the action box of a trained model (click its row) has a **Deploy** button, after *Audit*: it opens a dialog listing the registered deployers with their descriptions, each with its own *Deploy* button; the one pressed calls `POST .../deployments` with that deployer, and its outcome (status, `ref`, duration, or the error) is shown in its row. The *Deployers* block at the bottom of the view lists the registered deployers; with none registered, *Deploy* is disabled.
+In the admin UI's *Training* view, the action box of a trained model (click its row) has a **Deploy** button, after *Audit*: it opens a dialog listing the registered deployers with their descriptions, each with its own *Deploy* button; the one pressed calls `POST .../deployments` with that deployer. While it runs, its row shows the progress messages the deployer reported through `Update` (read every 1.5 s from `GET .../deployments`), the same for every deployer; when it ends the row shows the outcome (status, `ref`, duration, or the error) and keeps the messages it received. The *Deployers* block at the bottom of the view lists the registered deployers and their descriptions (from `GET /v1/gb/training/deployers`); with none registered, *Deploy* is disabled.
 
 ## System events
 
@@ -178,6 +192,6 @@ Each deployment that reaches the fetch emits a system event to the [`SystemEvent
 ## Limits and not included
 
 - Deployers are code in the embedding program; none is built in. There is no endpoint to register one at run time.
-- A deployment is one synchronous request. There is no background deploy, no progress, no cancellation besides the client leaving, and no resuming.
+- A deployment is one synchronous request. There is no background deploy, no cancellation besides the client leaving, and no resuming.
 - gligabao does not merge LoRA adapters into the base model, and does not convert formats: the deployer gets the files as they were saved (for the LoRA fine-tuning: `adapter_config.json`, `adapter_model.safetensors` and the tokenizer files, not the base model; `adapter_config.json` names the base model).
 - Deployments are never deleted, and neither are the fetched files.

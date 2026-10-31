@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.46.3] - 2026-10-31
+
+### Changed
+- Concepts / Identity: the **Auth** hook (API key to user, `user_id` replaced) and that the MCP tools are not covered by it, synced with gligabao's `docs/identity.md`.
+- Training / Model deploying: the `req.Update` progress callback and a new "Progress updates" section (limits, what is not stored, the messages gligabao adds), the `updates` of a running deployment, and the `trained_model_deploy_dir` config key; the limits no longer say there is no progress.
+
 ## [0.46.2] - 2026-10-31
 
 ### Added
