@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.46.2] - 2026-10-31
+
+### Added
+- Embedding / Hooks: the **Auth** hook (`ServeOptions.Auth`: API key to user, `401`, which routes it covers) and the **Trained model inference hooks** (`ServeOptions.TrainedModelInferenceHooks`: bypass Modal for one trained model, how the model is resolved, behaviour, validation), synced with gligabao's `docs/hooks.md`.
+
+### Changed
+- Embedding / Hooks: the trained model deployer's `Update` progress callback and the `trained_model_deploy_dir` config key are documented.
+
 ## [0.46.1] - 2026-10-31
 
 ### Changed
