@@ -4,6 +4,18 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.47.0] - 2026-11-01
+
+### Added
+- Guides / Research agents: a new **Admin UI** section (the research view: start agent, the dock of working agents, stop, details, failed agents, provenance of what an agent put in the knowledge base, temporal plot), the new `stopped` status and its state, and the admin endpoints (`GET/POST research`, `research/{id}`, `/stop`, `/provenance`, `/temporal`), synced with gligabao 0.153.1.
+- Evals / Experiments: the case modal of the Evals view (checks, LLM commentary, warnings, re-runs table, detached from the evals view), the new **Rerunning a case with other models** section (models and thinking levels, how the rerun is recorded, the modal that follows it, limits), the `case_runs/{id}/debug`, `commentary`, `rerun` and `temporal` endpoints, and the `gb_case_run_commentaries` table.
+- Embedding / Pipeline: the **Bookmarks** of the admin UI and the `remember-run` and `query-run` endpoints.
+
+### Changed
+- API reference / Remember: a model that refuses the thinking level is retried instead of failing the call, with a warning; the **Expand** button of the temporal plot; the temporal logic is named after its new package `memory_temporal` (also in Concepts / Temporal, Temporal edge cases and Edge events).
+- Evals / Evals: the cause in the `502` of the eval endpoints, the warnings of a trajectory, the commentary shared with the admin UI, and the manifest of the `temporal` eval.
+- Guides / CLI, MCP and Sub-agents: the `stopped` status of a research agent. Getting started / Configuration: the research, evals and bookmarks views of the admin UI.
+
 ## [0.46.3] - 2026-10-31
 
 ### Changed
