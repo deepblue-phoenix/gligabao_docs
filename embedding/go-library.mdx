@@ -29,7 +29,7 @@ err = gligabao.Serve(ctx, cfg, gligabao.ServeOptions{DBPath: "data/gligabao.db"}
     Finds the coordinates of the places `remember` extracts as entities: any `gligabao.GeoResolver` (`Name`, and `Resolve` that returns the best `GeoPlace` for a `GeoQuery`, or `gligabao.GeoNotFound`). Setting it turns the geo stage of `remember` on, whatever `Config.Geo` says; with `Config.Geo` and no `GeoResolver`, the public Nominatim geocoder of OpenStreetMap is used. See [Geo](/guides/geo#writing-a-resolver).
   </Accordion>
   <Accordion title="Hooks">
-    Callbacks gligabao invokes, today the system-event hook (called after every `remember`, `query` and timeseries request, with counts and timings). See [Hooks](/embedding/hooks).
+    Callbacks gligabao invokes, today the system-event hook (called after every `remember`, `query` and timeseries request, with counts and timings). `ServeOptions.GraphEmbedder` is the graph embedding hook, called with the graph of every `remember` once it is fully constructed and with the graph context of every `query` (**for now its embeddings are discarded: they must be stored in the vector store**). `ServeOptions.ClassifyingTrainingHook` is the classifying training hook: `POST /v1/gb/datasets/{name}/training` gives it the whole dataset (every artifact and its graph) and it returns the training dataset, possibly a filtered subset, with a class for each graph. See [Hooks](/embedding/hooks).
   </Accordion>
   <Accordion title="TrainedModelDeployers">
     The hooks that deploy a trained model: each is a `gligabao.TrainedModelDeployer{Name, Deploy}`. gligabao fetches the model's files to a local directory and calls `Deploy` with it (`POST /v1/gb/training/models/{id}/deployments`). See [Model deploying](/training/deploying).

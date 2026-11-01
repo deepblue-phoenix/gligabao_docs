@@ -4,6 +4,18 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.48.0] - 2026-11-03
+
+### Added
+- Embedding / Hooks: the **Graph embedder** hook (`ServeOptions.GraphEmbedder`: one embedding for a whole graph, called by `remember` and `query`; the embeddings are not stored yet; the `graph_index` name) and the **Classifying training hook** (`ServeOptions.ClassifyingTrainingHook`: `KnowledgeDataset` in, `TrainingDataset` out, contract, `POST /v1/gb/datasets/{name}/training`), synced with gligabao 0.160.0.
+- API reference / Remember: **Graph classes** (`classify_graph` and `graph_classes`, the new `classify_graph` stage with its model, reasoning level, run log columns and stage outputs, the `classes` of the response, the `gb_artifact_classes` table), the **in-context log** (`gb_graph_in_ctx_counters`) and its admin UI use (counts on the graph, histograms, `in_context` in the graph endpoint), and the `graph_index` field.
+- API reference / Query: the `graph_index` field and the **query button** of the admin UI (`POST /v1/gb/admin/api/query`, `GET /v1/gb/admin/api/query-options`).
+- Concepts / Datasets: the `POST /v1/gb/datasets/{name}/training` endpoint.
+
+### Changed
+- Embedding / Go library: the hooks accordion names the graph embedder and the classifying training hook.
+- API reference / Remember: a database made before 0.160.0 has to be recreated (new stage columns).
+
 ## [0.47.0] - 2026-11-01
 
 ### Added
