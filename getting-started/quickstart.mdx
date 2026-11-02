@@ -8,7 +8,7 @@ description: "Build gligabao, start the server, then remember and query your fir
 gligabao is pure Go and builds with `CGO_ENABLED=0`, so no C compiler is needed.
 
 ```sh
-./run_build.sh                      # builds build/gligabao
+./run_build.sh                      # builds build/gligabao and build/gligabao_agent (the deep-research agent with its sub-agents and the knowledge base in process, see the Research agents guide), and build/gligabao_agent_linux_amd64 (the same, for Linux containers: what runs a research in Modal)
 export ANTHROPIC_API_KEY=...        # required for remember/query
 export OPENAI_API_KEY=...           # required: embeddings (remember embeds what it stores, query the question)
 ./build/gligabao serve                # listens on :7878 by default
@@ -26,8 +26,8 @@ export OPENAI_API_KEY=...           # required: embeddings (remember embeds what
 
 ```sh
 curl -X POST localhost:7878/v1/gb/remember \
-  -H 'content-type: application/json' \
-  -d '{"user_id": "u1", "text": "Alice works at Acme and lives in Paris."}'
+  -H 'content-type: application/json' -H 'gb-user-id: u1' \
+  -d '{"text": "Alice works at Acme and lives in Paris."}'
 ```
 
 The response contains the `artifact_id`, the extracted entities, the `edges` with their temporal fields and any `invalidated_edges`. See [Remember](/api-reference/remember).
@@ -36,8 +36,8 @@ The response contains the `artifact_id`, the extracted entities, the `edges` wit
 
 ```sh
 curl -X POST localhost:7878/v1/gb/query \
-  -H 'content-type: application/json' \
-  -d '{"user_id": "u1", "query": "Where does Alice work?"}'
+  -H 'content-type: application/json' -H 'gb-user-id: u1' \
+  -d '{"query": "Where does Alice work?"}'
 ```
 
 You get an `answer` plus the `evidence` (entities and edges) it relied on. See [Query](/api-reference/query).
@@ -45,7 +45,7 @@ You get an `answer` plus the `evidence` (entities and edges) it relied on. See [
 ## 4. Inspect the graph
 
 ```sh
-curl 'localhost:7878/v1/gb/datasets/main/graph?user_id=u1'
+curl -H 'gb-user-id: u1' 'localhost:7878/v1/gb/datasets/main/graph'
 ```
 
 See [Graph export](/api-reference/graph).

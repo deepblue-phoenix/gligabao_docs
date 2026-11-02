@@ -4,6 +4,17 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.49.0] - 2026-11-02
+
+### Added
+- Guides / Research agents: the **runner** (`local`, the default, or `modal`: the `gligabao_agent` binary in a Modal container, started through the sidecar), the `runner` field and option on every surface (REST, admin UI, MCP, CLI), the new `importing` state, **what comes back** when a Modal run ends (the agent's export is downloaded and loaded into the server's databases: how entities and series are merged, what is added with remapped IDs, the sub-agents as runs of their own, provenance and the temporal plot for Modal runs) and how to set it up, synced with gligabao 0.165.0 to 0.167.0.
+- Guides / Deep-research agent: the standalone binary **`gligabao_agent`** (flags, databases, exit codes, how small it is kept), its `--events` protocol, the **`--export`** archive and the **ATIF trajectory** of a run with its sub-agents merged (`--atif`, `--atif-dir`, `Agent.Trajectory`, `Manager.UseTrajectories`), synced with gligabao 0.163.0 to 0.166.0.
+- Operations / Python sidecar: the research job routes (`/research/job_start`, `job_events`, `job_cancel`, `job_export`), a new **The research agent in Modal** section (the `run_agent` function, the event protocol, the export in the event log, stopping, deploying without the binary), the `SIDECAR_AGENT_*` settings and the agent binary in the container. Training / Running and Providers: `agent_run.py`, the new settings, `ImageSpec` files and environment variables. Training / Modal: the agent's secret and binary as prerequisites and two new troubleshooting rows.
+- API reference / Endpoints overview: the **Go client** (`clients/go`: `Remember` and `Query`, `GLIGABAO_URL`, `GLIGABAO_API_KEY`, `GLIGABAO_USER`, errors), synced with gligabao 0.161.0. Operations / Versioning and Getting started: `./run_build.sh` also builds `gligabao_agent` and its Linux build.
+
+### Changed
+- **The user comes from the `gb-user-id` header only** (gligabao 0.162.0, breaking): Concepts / Identity, Datasets, Embedding / Hooks (`Auth`), API reference (remember, query, graph, ontologies, timeseries, overview), Guides (images, web search, MCP, CLI, research) and Getting started now show the header in every request, no longer a `user_id` in the body or the query string; the `Auth` hook sets the header, and a request without it gets `400`.
+
 ## [0.48.0] - 2026-11-03
 
 ### Added

@@ -30,14 +30,14 @@ gligabao is a small, self-hosted MCP/HTTP/CLI server: use it over its HTTP API, 
 <CodeGroup>
 ```sh Remember
 curl -X POST localhost:7878/v1/gb/remember \
-  -H 'content-type: application/json' \
-  -d '{"user_id": "u1", "text": "Alice works at Acme and lives in Paris."}'
+  -H 'content-type: application/json' -H 'gb-user-id: u1' \
+  -d '{"text": "Alice works at Acme and lives in Paris."}'
 ```
 
 ```sh Query
 curl -X POST localhost:7878/v1/gb/query \
-  -H 'content-type: application/json' \
-  -d '{"user_id": "u1", "query": "Where does Alice work?"}'
+  -H 'content-type: application/json' -H 'gb-user-id: u1' \
+  -d '{"query": "Where does Alice work?"}'
 ```
 </CodeGroup>
 

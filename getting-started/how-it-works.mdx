@@ -5,7 +5,7 @@ description: "Remember, query, and the bi-temporal knowledge graph underneath."
 
 ## Remember
 
-`POST /v1/gb/remember` with `{"user_id": "u1", "text": "Alice works at Acme and lives in Paris."}` stores the text as an [artifact](/concepts/artifacts) and adds the facts it states to the graph, with the time they became true.
+`POST /v1/gb/remember` (header `gb-user-id: u1`) with `{"text": "Alice works at Acme and lives in Paris."}` stores the text as an [artifact](/concepts/artifacts) and adds the facts it states to the graph, with the time they became true.
 
 <Steps>
   <Step title="Extract">
@@ -39,7 +39,7 @@ Each LLM-invoking stage of `remember` can run on its own model through the optio
 
 ## Query
 
-`POST /v1/gb/query` with `{"user_id": "u1", "query": "Where does Alice work?"}`.
+`POST /v1/gb/query` (header `gb-user-id: u1`) with `{"query": "Where does Alice work?"}`.
 
 <Steps>
   <Step title="Retrieve">

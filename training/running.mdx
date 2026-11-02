@@ -33,6 +33,7 @@ sidecar/ai_train/
     inference.py              # generate with a trained adapter (model_path picks it)
     trained_model.py          # where a job's weights are saved, how they are described, model_path validation
     bootstrap.py              # ping + train dispatch by backend
+    agent_run.py              # runs the research agent (the gligabao_agent binary) in a container and reports to its job's event log
   api/
     api.py                    # FastAPI app (training jobs, progress, generate, eval; no dataset endpoints)
   providers/
@@ -77,6 +78,9 @@ These are the settings of the Modal app, in `config.py`; they can be overridden 
 | `SIDECAR_TRAIN_TIMEOUT_S` | `7200` | Timeout of the train jobs. |
 | `SIDECAR_INFER_IDLE_TIMEOUT_S` | `60` | How long a GPU inference container, with its model loaded, stays up after its last request (Modal: 2 to 1200). Requests within that time skip the model load. Redeploy after changing it. See [Warm inference containers](/training/modal#warm-inference-containers). |
 | `SIDECAR_HF_SECRET` | *(empty)* | Name of a provider secret with `HF_TOKEN`. Empty means no secret is attached. |
+| `SIDECAR_AGENT_BINARY` | *(see [the research agent in Modal](/operations/sidecar#the-research-agent-in-modal))* | The Linux x86-64 `gligabao_agent` binary baked into the research agent's image at deploy time. Default: `gligabao_agent_linux_amd64` next to `ai_train/` (the sidecar image has it there), else `build/gligabao_agent_linux_amd64` of the repo (`./run_build.sh`). None found (or the variable names a file that is not there): the app is deployed without an agent. |
+| `SIDECAR_AGENT_SECRET` | *(empty)* | Name of a provider secret with `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, for the research agent. Empty means no secret is attached (the agent then fails for lack of keys). |
+| `SIDECAR_AGENT_TIMEOUT_S` | `1800` | Timeout of the research agent's function, i.e. the longest a research in Modal can take (the binary is told to stop 90 s before it). |
 | `SIDECAR_VOL_DATA` | `gligabao-train-data` | Volume mounted at `/data` (datasets). |
 | `SIDECAR_VOL_MODELS` | `gligabao-train-models` | Volume mounted at `/models` (the trained models: one directory `trained/<job_id>` per completed job; see [Trained models](/training/trained-models#where-the-weights-are-saved)). |
 | `SIDECAR_VOL_EVAL` | `gligabao-train-eval` | Volume mounted at `/eval` (eval examples from the web API). |

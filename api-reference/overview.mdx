@@ -3,15 +3,15 @@ title: "Endpoints overview"
 description: "Every HTTP endpoint gligabao exposes."
 ---
 
-All endpoints require `user_id` (in the JSON body, or the query string for `GET`/`DELETE`).
+All endpoints of users take the user from the `gb-user-id` header (never from the body or the query string; see [Identity](/concepts/identity)).
 
 | Endpoint | Purpose | Docs |
 | --- | --- | --- |
 | `POST /v1/gb/remember` | Extract a temporal knowledge graph from text and store it; or, with `image`, read an image and store the extraction | [Remember](/api-reference/remember), [Artifacts](/concepts/artifacts), [Temporal facts](/concepts/temporal), [Edge events](/concepts/edge-events), [Images](/guides/images), [Chunking](/guides/chunking), [Web search](/guides/web-search), [Geo](/guides/geo), [Pipeline](/embedding/pipeline) |
 | `POST /v1/gb/timeseries`, `GET /v1/gb/timeseries`, `GET /v1/gb/timeseries/{id}` | Store timeseries and anchor them to artifacts, entities and facts; list and read them. A `remember` request can also supply them, fetch them from the providers, or derive `series_observation` artifacts from them (`timeseries`) | [Timeseries](/api-reference/timeseries) |
 | `POST /v1/gb/query` | Answer a question from the graph, with evidence | [Query](/api-reference/query), [Pipeline](/embedding/pipeline) |
-| `POST /v1/gb/datasets`, `GET /v1/gb/datasets?user_id=`, `DELETE /v1/gb/datasets/{name}?user_id=` | Create, list and (soft) delete datasets | [Datasets](/concepts/datasets) |
-| `GET /v1/gb/datasets/{name}/graph?user_id=` | Export a dataset's whole graph as JSON | [Graph export](/api-reference/graph) |
+| `POST /v1/gb/datasets`, `GET /v1/gb/datasets`, `DELETE /v1/gb/datasets/{name}` | Create, list and (soft) delete datasets | [Datasets](/concepts/datasets) |
+| `GET /v1/gb/datasets/{name}/graph` | Export a dataset's whole graph as JSON | [Graph export](/api-reference/graph) |
 | `POST /v1/gb/ontologies`, `PUT /v1/gb/ontologies/{name}` | Load an OWL ontology (RDF/XML), or update the one stored under a name (merge or replace) | [Ontologies](/api-reference/ontologies) |
 | `POST /v1/gb/research`, `GET /v1/gb/research`, `GET /v1/gb/research/{id}` | Start a deep-research agent on a topic (it searches the web, reads pages and works with your knowledge base with `remember`/`query` in the background, and ends with a report), list the agents (the active ones only, if asked), and read one with the states it went through; also `research_start`, `research_list` and `research_get` over MCP and `gligabao research` | [Research agents](/guides/research), [The deep-research agent](/guides/deep-research-agent), [Sub-agents and messages](/guides/subagents) |
 | `/v1/gb/mcp` | [MCP](https://modelcontextprotocol.io) server (streamable HTTP) with `remember` and `query` (and the three research tools) as tools; off by default (`mcp = true` / `serve --mcp`), no authentication | [MCP](/guides/mcp) |
@@ -19,3 +19,17 @@ All endpoints require `user_id` (in the JSON body, or the query string for `GET`
 | `GET /version` | Version (and git commit) of the running binary | [Versioning](/operations/versioning) |
 
 With [eval mode](/getting-started/configuration#eval-mode) enabled, `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/query` are also registered.
+
+## Go client
+
+`clients/go` is a small Go client for the HTTP API (its own module, `github.com/deepblue-phoenix/gligabao/clients/go`, package `gligabao`, standard library only). `Client.Remember` and `Client.Query` wrap `POST /v1/gb/remember` and `POST /v1/gb/query` with typed requests and responses:
+
+```go
+gb := gligabao.NewFromEnv() // GLIGABAO_URL (default http://127.0.0.1:7878), GLIGABAO_API_KEY, GLIGABAO_USER
+// or: gligabao.New("http://127.0.0.1:7878", gligabao.WithAPIKey(key), gligabao.WithUserID("u1"))
+
+res, err := gb.Remember(ctx, gligabao.RememberRequest{Text: "Alice works at Acme.", Kind: "episode"})
+ans, err := gb.Query(ctx, gligabao.QueryRequest{Query: "Where does Alice work?"})
+```
+
+A server with the [`Auth` hook](/embedding/hooks#auth) maps the API key (`Authorization: Bearer`) to the user; a server without it needs `WithUserID`, which is sent in the `gb-user-id` header of every call (`gligabao.UserIDHeader`). A non-2xx answer is a `*gligabao.Error` (`Status`, `Message`; `Status` 0 if the server cannot be reached). Fields the request structs do not model go in `Extra`, and the whole JSON answer is in `Raw`. Tests: `cd clients/go && go test ./...`. See [clients/go/README.md](https://github.com/deepblue-phoenix/gligabao/blob/main/clients/go/README.md).

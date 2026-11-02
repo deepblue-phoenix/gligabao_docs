@@ -6,7 +6,7 @@ description: "Serve remember and query as tools of an MCP server, so MCP clients
 gligabao can serve `remember` and `query` as tools of an [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server, so that MCP clients (Claude Desktop, Claude Code, IDE agents, ...) can use it as their memory. It is built on the official Go SDK, [`modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk).
 
 <Warning>
-  **It is off by default and has no authentication.** Enable it with `mcp = true` in the config file (`build/gligabao.toml`) or `serve --mcp`. Callers choose the `user_id` themselves, exactly as with the REST API when no `Auth` hook is set, so turn it on only on a trusted network. The endpoint is **not** covered by the `Auth` hook (a warning is logged at startup if both are set); when gligabao is [mounted](/embedding/go-library#mounting-on-your-own-http-server) on a host's mux, `MountOptions.Wrap` does cover it, as it is under `/v1/gb/`.
+  **It is off by default and has no authentication.** Enable it with `mcp = true` in the config file (`build/gligabao.toml`) or `serve --mcp`. Callers choose the `user_id` themselves (an argument of every tool, which the tool sends to the handler as the `gb-user-id` header), exactly as with the REST API when no `Auth` hook is set, so turn it on only on a trusted network. The endpoint is **not** covered by the `Auth` hook (a warning is logged at startup if both are set); when gligabao is [mounted](/embedding/go-library#mounting-on-your-own-http-server) on a host's mux, `MountOptions.Wrap` does cover it, as it is under `/v1/gb/`.
 </Warning>
 
 ## Endpoint
@@ -60,7 +60,7 @@ Three tools run the handlers of the [research agent](/guides/research) endpoints
 
 | Tool | Arguments |
 | --- | --- |
-| `research_start` | `user_id` (required), `topic` (required), `max_steps` (optional, default 20, at most 40), `model` (optional), `dataset` (optional: the dataset of the knowledge base the agent queries and remembers into, default `main`) |
+| `research_start` | `user_id` (required), `topic` (required), `max_steps` (optional, default 20, at most 40), `model` (optional), `dataset` (optional: the dataset of the knowledge base the agent queries and remembers into, default `main`), `runner` (optional: `local`, the default, runs the agent in the server; `modal` runs the `gligabao_agent` binary in Modal through the sidecar, see [research.md](/guides/research#where-the-agent-runs-the-runner)) |
 | `research_list` | `user_id` (required), `active` (optional: only the agents working now), `status` (optional: `running`, `completed`, `failed` or `stopped`), `limit` (optional) |
 | `research_get` | `user_id` (required), `id` (required: the id `research_start` returned) |
 
