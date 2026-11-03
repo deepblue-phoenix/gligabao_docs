@@ -37,8 +37,7 @@ A **state** (`gb_agent_research_states`) is one stage of its work. A row is inse
 | `querying` | the `query` tool is running (the knowledge base) | the question |
 | `remembering` | the `remember` tool is running | `async: ` or `sync: ` (whether the call waits), then the start of the text |
 | `spawning` | the `spawn_subagent` tool is running ([sub-agents](/guides/subagents)) | the name of the sub-agent and its reason |
-| `waiting` | the agent waits for its sub-agents (`wait_subagents`) or for a message (`read_messages` with `wait_seconds`) | the sub-agents, or `a message, up to N s` |
-| `messaging` | `send_message`, `list_siblings` or `read_messages` (without waiting) is running | the sibling written to, and the start of the text |
+| `waiting` | the agent waits for its sub-agents (`wait_subagents`) | the sub-agents |
 | `using_tool` | any other tool is running | its name |
 | `importing` | only for a `modal` run: the agent ended and the server loads what it learned into its databases ([below](#what-comes-back-the-import)) | `loading what the agent learned (1.2 MB)`; the `error` says why it failed |
 | `writing_report` | the last model call, the one that may not use tools, is running: its text is the report | `step 20 of 20, the last: ...` |
@@ -52,29 +51,35 @@ The run keeps `steps` (model calls made), `tool_calls`, `input_tokens`, `output_
 
 ## REST
 
-All three routes are user routes: the user is the `gb-user-id` header (required; never read from the body or the query string), and with the [`Auth` hook](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/hooks.md#auth) the API key sets it. A user only sees their own runs: another user's run is a `404`.
+All three routes are user routes: the user is the `gb-user-id` header (required; never read from the body or the query string), and with the [`Auth` hook](/embedding/hooks#auth) the API key sets it. A user only sees their own runs: another user's run is a `404`.
 
 ### `POST /v1/gb/research`
 
 Starts an agent. Body:
 
 ```json
-{"topic": "How do solid-state batteries compare with lithium-ion?", "max_steps": 20, "model": "", "dataset": "main", "runner": "local"}
+{"topic": "How do solid-state batteries compare with lithium-ion?", "agent": "default", "max_steps": 20, "model": "", "max_cost_usd": 0, "dataset": "main", "runner": "local"}
 ```
 
 - `topic` (required, at most 2000 characters): what to research. A question, or a subject to write a report on.
-- `max_steps` (optional, default 20, at most 40): the most model calls the agent makes, the last of which writes the report. More steps let it search and read more, and cost more.
-- `model` (optional): the model it runs on, which must support Anthropic's web search tool. Default: the server's default model.
+- `agent` (optional, default `default`): the [agent definition](/guides/agent-defs) to run (`GET /v1/gb/research/agents` lists them); an unknown one is a `400`. `agent_version` (optional) is a constraint its version must meet (`1.2.0`, `>=1.0`, `^1.2`); a mismatch is a `400`. The run records `agent_name`, `agent_version` and `agent_hash`.
+- `max_cost_usd` (optional, 0 = none): a cap in USD on what the whole research may spend, sub-agents included. It can lower the caps of the definition and of the server (`research_max_cost_usd`), never raise them. When it is reached the agents write their reports and the report says so ([cost caps](/guides/agent-defs#limits-cost-caps)).
+- `max_steps` (optional, default: the `max_steps` of the definition, 20 for `default`; at most 40): the most model calls the agent makes, the last of which writes the report. More steps let it search and read more, and cost more.
+- `model` (optional): the model it runs on, which must support Anthropic's web search tool. Default: the `model` of the definition, else the server's default model. It is the model of the main agent; a sub-agent runs on the model of its own definition, else its parent's.
 - `dataset` (optional, default `main`): the dataset of the user's knowledge base the agent queries and remembers into ([below](#the-knowledge-base)). It is created by the first `remember` if it does not exist; a bad name is a `400`. It is not stored with the run. With the `modal` runner it is the dataset the agent's knowledge lands in when the agent ends ([below](#what-comes-back-the-import)).
 - `runner` (optional, default `local`): where the agent runs, `local` (in the server, as always) or `modal` (the `gligabao_agent` binary in a Modal container, see [below](#where-the-agent-runs-the-runner)). Any other value is a `400`. The run says which one it has (`runner`).
 
 Answers `202` with the run (`status` `running`, `state` `starting`); the agent goes on in the background. `400` for a bad body, `409` if the user already has 3 agents working (wait for one to end), `503` without an Anthropic API key (for `local`), or, for `modal`, when the sidecar cannot start the job (it is down, or the Modal app has no agent: the message says which).
 
 ```json
-{"id": 7, "user_id": "u1", "topic": "...", "status": "running", "state": "starting", "model": "", "max_steps": 20, "runner": "local",
+{"id": 7, "user_id": "u1", "topic": "...", "status": "running", "state": "starting", "model": "", "max_steps": 20, "runner": "local", "agent_name": "default", "agent_version": "1.0.0", "agent_hash": "9f2c...",
  "steps": 0, "tool_calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0, "report": "", "error": "",
  "created_at": "2026-11-01T10:00:00.120Z", "finished_at": null}
 ```
+
+### `GET /v1/gb/research/agents`
+
+`{"agents": [...]}`: the [agent definitions](/guides/agent-defs) a research can run, by name, each with `name`, `version`, `description`, `hash`, `source` (the file, or `builtin`), `model`, `max_steps`, `max_cost_usd`, `max_tree_cost_usd`, `knowledge`, `skills` and `subagents` (the roles).
 
 ### `GET /v1/gb/research`
 
@@ -108,9 +113,10 @@ To follow a run, poll this route (or `research_get`, or `gligabao research get`)
 ## CLI
 
 ```
-gligabao research start TOPIC [--max-steps N] [--model M] [-d DATASET] [--runner local|modal] [--wait [--raw]] [--json BODY]
+gligabao research start TOPIC [--agent NAME] [--agent-version V] [--max-cost USD] [--max-steps N] [--model M] [-d DATASET] [--runner local|modal] [--wait [--raw]] [--json BODY]
 gligabao research ls [--active] [--status S] [--limit N]
 gligabao research get ID [--raw]
+gligabao research agents
 ```
 
 `--runner modal` runs the agent in Modal ([below](#where-the-agent-runs-the-runner)); the default is local. `start` prints the run right away; with `--wait` it waits for the agent to end and prints the finished run (exit code 1 if it failed), and `--raw` prints only the report. `get --raw` prints only the report. See [cli.md](/guides/cli).
@@ -211,13 +217,13 @@ The tools are on whenever the server has an LLM for the memory (the same conditi
 
 ## Sub-agents
 
-A research agent can spawn **sub-agents**, other research agents that take sub-tasks (`spawn_subagent`, `wait_subagents`), and sibling sub-agents can see each other and their reasons (`list_siblings`) and message each other (`send_message`, `read_messages`). Every sub-agent is spawned with a reason. A sub-agent is a run like any other: it has its own states, usage and report, and a `parent_id`, a `name` and a `reason` (`null`/`""` for a research a user started); `GET /v1/gb/research?parent_id=` lists the sub-agents of a run. They are bounded (5 per agent, 10 per research, 2 levels deep) and are cancelled when their parent ends. All of it, the tools, the limits, who can message whom and the replaceable message system, is in [subagents.md](/guides/subagents).
+A research agent can spawn **sub-agents**, other research agents that take sub-tasks (`spawn_subagent`, `wait_subagents`). Every sub-agent is spawned with a reason. A sub-agent is a run like any other: it has its own states, usage and report, and a `parent_id`, a `name` and a `reason` (`null`/`""` for a research a user started); `GET /v1/gb/research?parent_id=` lists the sub-agents of a run. They are bounded (5 per agent, 10 per research, 2 levels deep) and are cancelled when their parent ends. All of it, the tools and the limits, is in [subagents.md](/guides/subagents).
 
 ## How it works
 
 - `internal/agent`: the loop and the research agent ([deep-research-agent.md](/guides/deep-research-agent)). It has an `Observer` (before and after each model call and each tool run) that the manager uses to record the states, and `ReportUsage`, with which a tool that calls a model (the web search) adds its tokens and cost to the run.
 - `internal/agent_research`: the `Manager` makes a `researcher` for each agent, the struct that holds all of its state (see [isolation](/guides/deep-research-agent#isolation)), and starts it in a goroutine of its own (at most 3 working at once per user); the manager creates the run and its first state in one transaction, and the researcher enters a state in a transaction at each event (end the previous state, insert the new one, set the run's `state`), writes the usage after every model call and tool run, and ends the run (its status, report or error, and the terminal state) in a transaction. A failed write of the progress is logged and does not stop the agent. Storage is in `agent_research/db/sqlite` and `agent_research/db/postgres` (each with its schema); the types are in `agent_research/core`.
-- `internal/agent_research/team.go` and `messages.go`, `internal/agent/team.go`: the sub-agents and their messages; the prompts are in `internal/agent/prompts/` (see [subagents.md](/guides/subagents)).
+- `internal/agent_research/team.go` and `internal/agent/team.go`: the sub-agents; the prompts are in `internal/agent/prompts/` (see [subagents.md](/guides/subagents)).
 - `internal/agent_memory/memory.go`: `Memory` (the remember manager, the database, the LLM and the options of the remember and query endpoints), which `api.Register` gives the manager (`Manager.UseMemory`; `agent_research.Memory` is an alias of it); each agent gets its own view of it (`Memory.Knowledge`: its user, dataset and session) that implements `agent.Knowledge`, the interface behind the tools `remember` and `query` (`internal/agent/knowledge.go`). The package is shared with the standalone binary ([deep-research-agent.md](/guides/deep-research-agent#the-standalone-binary-gligabao_agent)). Without a `Memory` the agents only have the web tools.
 - `internal/api/research`: the REST handlers; `internal/api/mcp` and `cli` call them (the MCP tools in process, the CLI over HTTP).
 - `internal/agent_research/remote.go`: the `modal` runner ([above](#where-the-agent-runs-the-runner)): `Manager.UseRemote` gives the manager the `Remote` it starts the jobs with, and a `remoteRun` follows the job of each such run on a goroutine of its own, writing its events to the run like a `researcher` does, and, when the job ends, downloads its export and has the `Importer` (`Manager.UseImporter`; the server's is in `internal/sys/server/research_remote.go`, over `internal/db/dbimport`) load it.
@@ -225,4 +231,4 @@ A research agent can spawn **sub-agents**, other research agents that take sub-t
 
 ## Not included yet
 
-Following again, after a restart of the server, the jobs it had running in Modal (their export, and so what they learned, is lost with them); the user's own knowledge base *for* the agents that run in Modal (they start with an empty one of the container's; what they learn is merged back into the user's when they end), the import of an export into a server that has no vector store of the same embedding size (the rows are imported, the vectors are not), other places to run the agent than Modal, cancelling a run by a user (only the admin UI can stop one), messages between agents that are not siblings (a parent and its sub-agents, cousins), storing the messages, a stream of its states (poll `GET /v1/gb/research/{id}`), storing the report itself in a dataset, waiting for the queued snippets before a run ends, counting the cost of `remember` and `query` in the run's cost, recording the agent's model calls in `gb_inferences`, and a cap on the cost of a run. See the [roadmap](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/roadmap/ROADMAP.md).
+Following again, after a restart of the server, the jobs it had running in Modal (their export, and so what they learned, is lost with them); the user's own knowledge base *for* the agents that run in Modal (they start with an empty one of the container's; what they learn is merged back into the user's when they end), the import of an export into a server that has no vector store of the same embedding size (the rows are imported, the vectors are not), other places to run the agent than Modal, cancelling a run by a user (only the admin UI can stop one), a stream of its states (poll `GET /v1/gb/research/{id}`), storing the report itself in a dataset, waiting for the queued snippets before a run ends, counting the cost of `remember` and `query` in the run's cost, and recording the agent's model calls in `gb_inferences`. See the [roadmap](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/roadmap/ROADMAP.md).

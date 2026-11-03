@@ -4,6 +4,17 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.50.0] - 2026-11-03
+
+### Added
+- Guides / **Agent definitions** (new page): research agents described by TOML or JSON files in `agent_defs/` next to the binary (`agent_defs_dir`, `serve --agent-defs-dir`), read once at startup: the format, the system prompt and skills, `[search]` (domain filters, preferences), `[knowledge]` (access, dataset), `[limits]` cost caps (`max_cost_usd`, `max_tree_cost_usd`, `research_max_cost_usd`), `[spawn]` sub-agent roles (`on_demand`, `on_start`), `[schedule]` (a CRON schedule that starts researches by itself), versions, `agent_hash`, how definitions reach Modal (the bundle) and the startup checks, synced with gligabao 0.168.0 and 0.170.0.
+- API reference / **Git export** (new page): `GET /v1/gb/datasets/{name}/git` and `gligabao dataset git`, a dataset as a bare git repository with one commit per `remember` call, the layout of the files, how edge events become file changes, the graph classes, the remember and query run logs and the limits, synced with gligabao 0.172.0. Concepts / Datasets, API reference / Endpoints overview and Guides / CLI list the new endpoint and command.
+- Guides / Research agents, MCP, CLI and the deep-research agent, Operations / Python sidecar: the `agent`, `agent_version` and `max_cost_usd` options of a research (REST, MCP `research_start`, `gligabao research start --agent --agent-version --max-cost`), `GET /v1/gb/research/agents` and `gligabao research agents`, the `agent_name`, `agent_version` and `agent_hash` of a run, the new `gligabao_agent` flags (`--agent`, `--agent-defs-dir`, `--agent-bundle`, `--max-cost-usd`) and the `agent`, `agent_bundle` and `max_cost_usd` fields of `POST /research/job_start`, synced with gligabao 0.168.0.
+
+### Changed
+- Guides / Sub-agents (renamed from "Sub-agents and messages"; the URL is the same): **message passing between agents is gone** (gligabao 0.169.0): the tools `send_message`, `read_messages` and `list_siblings`, the `messaging` state, the `Messenger` and `[spawn] messaging` are removed from this page, Research agents, the deep-research agent and Agent definitions. The page now also describes the roles of an agent definition and the cost cap of a whole tree of agents.
+- Guides / Research agents and the deep-research agent: `max_steps` and `model` default to those of the agent's definition, and a research has a cost cap when its definition, its request or the server sets one (it used to have none).
+
 ## [0.49.0] - 2026-11-02
 
 ### Added

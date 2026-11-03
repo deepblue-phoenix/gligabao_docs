@@ -26,6 +26,10 @@ Details that matter:
 - **The report is the text of the last turn** only, trimmed. A run that ends with no text has failed ("the agent ended without a report").
 - **An `Observer`** (`BeforeModel`, `AfterModel`, `BeforeTool`, `AfterTool`) is told what the loop does, one event at a time, on the goroutine of the agent. The job manager uses it to record the [states](/guides/research#runs-and-states) and the cost as the run goes. A tool that calls a model itself reports what it spent with `ReportUsage`, so that it is added to the run's totals.
 
+## Agent definitions
+
+What the agent is is not fixed in code: an [agent definition](/guides/agent-defs) (a TOML or JSON file in `agent_defs/` next to the binary, loaded at startup) sets its prompt, model, steps, tools, search preferences and domain filters, knowledge-base access, cost caps, skills, and when and which sub-agents it starts. `agent.FromDef` builds the `Agent` of a definition; `agent.ResearchAgent` is the built-in `default` one, which is what this page describes. A research picks a definition with `agent`; each sub-agent is built from the definition of its role. `Agent.OutOfBudget` is the hook of the cost caps: when it says the budget is spent, the next model call is the last one.
+
 ## Isolation
 
 Every research agent is **isolated** from the others, so that one cannot slow down, confuse or break another:
@@ -44,7 +48,7 @@ Every research agent is **isolated** from the others, so that one cannot slow do
 | Steps (`MaxSteps`) | 20 by default; the job lets the caller choose 1 to 40 (`max_steps`) |
 | Answer size (`MaxTokens`) | 8192 tokens per model call (so a report is at most that long) |
 | Model | the server's default model, or the `model` of the request. It runs the loop and writes the report |
-| Tools | `web_search` and `fetch_url`; with a knowledge base (the case when it runs as a job on the server), also `query` and `remember`; as a job, also `spawn_subagent` and `wait_subagents` (unless it is at the deepest level), and `list_siblings`, `send_message` and `read_messages` if it is itself a sub-agent (see [subagents.md](/guides/subagents)) |
+| Tools | `web_search` and `fetch_url`; with a knowledge base (the case when it runs as a job on the server), also `query` and `remember`; as a job, also `spawn_subagent` and `wait_subagents` (unless it is at the deepest level) (see [subagents.md](/guides/subagents)) |
 
 The system prompts live in Markdown files in `internal/agent/prompts/` (embedded in the binary; the parts and who gets them are in [subagents.md](/guides/subagents#prompts)). The base prompt tells it to: research the topic by searching the web several times with different queries; read the most relevant pages with `fetch_url`; check claims against more than one source; stop when it can answer well; and then write a report: **a short summary first, then the details, then the list of the source URLs used**, saying what it could not find out and never guessing. The user turn is the topic as given.
 
@@ -67,7 +71,7 @@ Input: `{"url": "..."}`. It downloads a page with a plain `GET` (Go's default HT
 - At most 1 MiB is downloaded, and the HTML is turned into text **crudely on purpose**: `script`, `style` and `noscript` blocks and all tags are removed and white space is collapsed. There is no content-type check (a PDF comes back as garbage) and no readability extraction.
 - The model gets **the first 15,000 characters** of the text. The rest of a long page is lost to it.
 
-`fetch_url` fetches whatever URL the model chooses, from the machine gligabao runs on, with no allow-list: a page on a private network is reachable if the server can reach it. Keep that in mind where the topic comes from untrusted users (see [Hooks](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/hooks.md#auth) for who can start a research).
+`fetch_url` fetches whatever URL the model chooses, from the machine gligabao runs on, with no allow-list: a page on a private network is reachable if the server can reach it. Keep that in mind where the topic comes from untrusted users (see [Hooks](/embedding/hooks#auth) for who can start a research).
 
 ### Tool `query`
 
@@ -91,7 +95,7 @@ Without a knowledge base (an agent built with `agent.Research`, or a server with
 
 ## Sub-agents
 
-As a job, the agent can hand sub-tasks to other agents with `spawn_subagent` and `wait_subagents`, and a sub-agent can list its siblings and their reasons with `list_siblings` and message them with `send_message` and `read_messages`. Every spawn carries a reason, and the prompt of the agent that can spawn says it should do so only when really warranted. The tools reach the job through `agent.Team` (five methods, `Spawn`, `Wait`, `Siblings`, `Send`, `Receive`) and are added to the agent with `agent.AddTeamTools`. Everything about them (the tools, the limits, who can message whom, the message system, what a sub-agent costs) is in [subagents.md](/guides/subagents).
+As a job, the agent can hand sub-tasks to other agents with `spawn_subagent` and `wait_subagents`. Every spawn carries a reason, and the prompt of the agent that can spawn says it should do so only when really warranted. The tools reach the job through `agent.Team` (two methods, `Spawn` and `Wait`) and are added to the agent with `agent.AddTeamTools`. Everything about them (the tools, the limits, what a sub-agent costs) is in [subagents.md](/guides/subagents).
 
 ## What a run costs
 
@@ -102,7 +106,7 @@ A run's cost is the sum of:
 
 The `remember` and `query` tools also call the LLM (extraction, answering), but what they cost is recorded as inferences of their own (`gb_inferences`) and is **not** added to the run's `cost_usd`; a `remember` that does not wait also runs after the tool returned. Remembering many snippets therefore costs more than the run shows.
 
-The worst case is therefore bounded by `max_steps` and by the number of tool calls a step makes (the model may ask for several tools in one step), but there is no cap in dollars yet. The run's `input_tokens`, `output_tokens` and `cost_usd` are updated after every model call and every tool run, so the cost can be followed while it works (a model with no known price counts $0 for its tokens, but the searches are still counted).
+The worst case is therefore bounded by `max_steps` and by the number of tool calls a step makes (the model may ask for several tools in one step), but the cost is only capped when a [cost cap](/guides/agent-defs#limits-cost-caps) is set (in the agent definition, the request or the server's `research_max_cost_usd`; the built-in agent has none). The run's `input_tokens`, `output_tokens` and `cost_usd` are updated after every model call and every tool run, so the cost can be followed while it works (a model with no known price counts $0 for its tokens, but the searches are still counted).
 
 ## Using the agent from Go
 
@@ -116,7 +120,7 @@ Besides the job on the server, the agent has a deployment of its own: `build/gli
 ANTHROPIC_API_KEY=... OPENAI_API_KEY=... gligabao_agent [flags] TOPIC | -
 ```
 
-**How it runs.** It opens the databases, builds the remember manager, the knowledge base (`agent_memory.Memory`, the same code the server gives its research agents) and the research manager with `UseMemory`, starts one research (`Manager.Start`, with the options a `POST /v1/gb/research` has: topic, `max_steps`, `model`, `dataset`), waits for it and its sub-agents to end, and prints the report of the run. So the agent has all the tools of a job (`web_search`, `fetch_url`, `query`, `remember`, and `spawn_subagent`, `wait_subagents`, `list_siblings`, `send_message` and `read_messages`), the same prompts, limits (up to 10 sub-agents, 2 levels deep) and states as in [research.md](/guides/research#runs-and-states). The run, its states, its sub-agents, the usage and the report are in `gb_agent_research_runs` and `gb_agent_research_states` as for a job (`gb_remember_runs` and the rest of the knowledge base tables too), and what the agents remember carries the session `research-<run id>`.
+**How it runs.** It opens the databases, builds the remember manager, the knowledge base (`agent_memory.Memory`, the same code the server gives its research agents) and the research manager with `UseMemory`, starts one research (`Manager.Start`, with the options a `POST /v1/gb/research` has: topic, `max_steps`, `model`, `dataset`), waits for it and its sub-agents to end, and prints the report of the run. So the agent has all the tools of a job (`web_search`, `fetch_url`, `query`, `remember`, and `spawn_subagent` and `wait_subagents`), the same prompts, limits (up to 10 sub-agents, 2 levels deep) and states as in [research.md](/guides/research#runs-and-states). The run, its states, its sub-agents, the usage and the report are in `gb_agent_research_runs` and `gb_agent_research_states` as for a job (`gb_remember_runs` and the rest of the knowledge base tables too), and what the agents remember carries the session `research-<run id>`.
 
 **The databases.** `internal/db` is opened with the knowledge base tables (relational and graph, and the vector store) and the research run tables only; the tables of training, evals and training audits are not created (`internal/db/dbfull` adds them for the server).
 
@@ -130,7 +134,7 @@ ANTHROPIC_API_KEY=... OPENAI_API_KEY=... gligabao_agent [flags] TOPIC | -
 
 - The topic is the argument (at most 2000 characters), or stdin if it is `-`.
 - The **report goes to stdout**; the totals and everything else go to stderr, so `gligabao_agent "..." > report.md` works. The totals (steps, tool calls, tokens, cost) are those of the **whole tree**: the agent and its sub-agents (on the server each run has its own only). As in the job, they do not include what `remember` and `query` spend.
-- Flags: `--max-steps` (1 to 40, default 20), `--model` (default: the built-in default model; it must support the web search tool), `--timeout` (a duration like `10m`, default none), `--json` (stdout is `{"report", "run_id", "subagents", "steps", "tool_calls", "input_tokens", "output_tokens", "cost_usd"}`), `--verbose` (writes every state the agents enter, the sub-agents' too, and the log of the databases and managers, to stderr), `--events` (the progress as JSON lines on stderr, see [In Modal](#in-modal-the-modal-runner); not together with `--verbose`), `--export FILE` (write the state to an archive, see [the export](#the-export-gligabao_agent---export)), `--atif` (add the run's [ATIF trajectory](#the-trajectory-atif) to the `--json` output as `trajectory`; needs `--json`, or `--atif-dir`), `--atif-dir DIR` (store the trajectory as `<trajectory_id>.json` in that directory, also when the research failed), `--config`, `--db`, `--vector-dir`, `--user`, `--dataset`, `--version`.
+- Flags: `--agent NAME` (the [agent definition](/guides/agent-defs), default `default`), `--agent-defs-dir DIR` (default: `agent_defs` next to the binary), `--agent-bundle FILE` (definitions as JSON instead of a directory: what the server sends to Modal), `--max-cost-usd N` (a cap on the whole research), `--max-steps` (1 to 40, default: the agent's, 20 for `default`), `--model` (default: the built-in default model; it must support the web search tool), `--timeout` (a duration like `10m`, default none), `--json` (stdout is `{"report", "run_id", "subagents", "steps", "tool_calls", "input_tokens", "output_tokens", "cost_usd"}`), `--verbose` (writes every state the agents enter, the sub-agents' too, and the log of the databases and managers, to stderr), `--events` (the progress as JSON lines on stderr, see [In Modal](#in-modal-the-modal-runner); not together with `--verbose`), `--export FILE` (write the state to an archive, see [the export](#the-export-gligabao_agent---export)), `--atif` (add the run's [ATIF trajectory](#the-trajectory-atif) to the `--json` output as `trajectory`; needs `--json`, or `--atif-dir`), `--atif-dir DIR` (store the trajectory as `<trajectory_id>.json` in that directory, also when the research failed), `--config`, `--db`, `--vector-dir`, `--user`, `--dataset`, `--version`.
 - Exit codes: `0` ok, `1` the research did not complete (the run failed or was stopped: a model call failed, the timeout was reached, SIGINT/SIGTERM), `2` bad flags, no topic, a missing API key or a database that cannot be opened.
 
 **Small by construction.** It links `internal/agent`, `internal/agent_research`, `internal/agent_memory`, the memory packages and the databases they need (both SQLite, in pure Go, and PostgreSQL, so the backend is chosen at run time), `internal/ai` and the config. `TestMinimalDependencies` in `cmd/gligabao_agent` fails if the HTTP API, the server, training, evals, `internal/db/dbfull`, `internal/db/dbimport` (the server loads exports; the binary only writes them), the CLI or the admin UI get linked. It is built with `CGO_ENABLED=0`, `-trimpath` and `-s -w`, so it is a static binary.
@@ -162,4 +166,4 @@ To run it on another platform cross-compile it as any Go program, e.g. `GOOS=lin
 
 ## Not included yet
 
-Cancelling a run, a cap on its cost (and counting the cost of `remember` and `query` in it), waiting for the snippets still queued before a run ends, storing the report itself in the knowledge base, summarising or dropping old turns of a long conversation, a better page reader (PDF, readability), blocking private addresses in `fetch_url`, other search providers than Anthropic's, and recording the agent's model calls in `gb_inferences`. See the [roadmap](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/roadmap/ROADMAP.md).
+Cancelling a run, counting the cost of `remember` and `query` in the cost caps, waiting for the snippets still queued before a run ends, storing the report itself in the knowledge base, summarising or dropping old turns of a long conversation, a better page reader (PDF, readability), blocking private addresses in `fetch_url`, other search providers than Anthropic's, and recording the agent's model calls in `gb_inferences`. See the [roadmap](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/roadmap/ROADMAP.md).

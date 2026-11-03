@@ -27,7 +27,7 @@
           },
           {
             "group": "Guides",
-            "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/geo", "guides/mcp", "guides/cli", "guides/research", "guides/deep-research-agent", "guides/subagents", "guides/vectors"]
+            "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/geo", "guides/mcp", "guides/cli", "guides/research", "guides/agent-defs", "guides/deep-research-agent", "guides/subagents", "guides/vectors"]
           },
           {
             "group": "Evals",
@@ -61,7 +61,7 @@
           },
           {
             "group": "Data",
-            "pages": ["api-reference/ontologies", "api-reference/timeseries"]
+            "pages": ["api-reference/ontologies", "api-reference/timeseries", "api-reference/git-export"]
           },
           {
             "group": "Service",
