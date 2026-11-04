@@ -4,6 +4,17 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.51.0] - 2026-11-04
+
+### Added
+- Guides / **gligabao_lambda** (new page): the small binary that runs one `remember`, `query` or `research` per process and exits, with no server, for AWS Lambda and similar jobs: how it runs, the exit codes, the state (SQLite file and vector directory, `--export`, PostgreSQL / Pinecone), the flags and why it stays small, synced with gligabao 0.173.0. Quickstart and The deep-research agent mention it.
+- Guides / **The agent scheduler** (new page): how the server starts agents on their CRON `[schedule]` (the loop, the skipping while the previous run works, what is not remembered across restarts, several servers on one database, the logs), synced with gligabao 0.172.1. Agent definitions links to it.
+- API reference / Endpoints overview: `GET /v1/gb/status` (version, commit, database and sidecar state), synced with gligabao 0.174.0.
+
+### Changed
+- API reference / Remember (run log and tables), Embedding / Pipeline, Operations / Inferences: **the stages of a remember run are rows of `gb_remember_run_stages`** (`run_id`, `stage_type`, `status`, `error`, `started_at`, `finished_at`, `inference_ids`), not columns of `gb_remember_runs`; an older database has to be recreated. Synced with gligabao 0.175.0.
+- The code references to the database schema now point to the embedded `schema.sql` files instead of the `db_schema.go` / `schema.go` files (gligabao 0.174.2).
+
 ## [0.50.0] - 2026-11-03
 
 ### Added

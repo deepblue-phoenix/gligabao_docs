@@ -17,6 +17,7 @@ All endpoints of users take the user from the `gb-user-id` header (never from th
 | `POST /v1/gb/research`, `GET /v1/gb/research`, `GET /v1/gb/research/{id}`, `GET /v1/gb/research/agents` | Start a deep-research agent on a topic (it searches the web, reads pages and works with your knowledge base with `remember`/`query` in the background, and ends with a report), list the agents (the active ones only, if asked), read one with the states it went through, and list the agent definitions (TOML or JSON files in `agent_defs/` next to the binary: prompt, skills, search and knowledge settings, cost caps, sub-agent roles; pick one with `agent`); also `research_start`, `research_list` and `research_get` over MCP and `gligabao research` | [Research agents](/guides/research), [The deep-research agent](/guides/deep-research-agent), [Sub-agents](/guides/subagents), [Agent definitions](/guides/agent-defs) |
 | `/v1/gb/mcp` | [MCP](https://modelcontextprotocol.io) server (streamable HTTP) with `remember` and `query` (and the three research tools) as tools; off by default (`mcp = true` / `serve --mcp`), no authentication | [MCP](/guides/mcp) |
 | `GET /health` | Health check | |
+| `GET /v1/gb/status` | Status: version, commit hash, database and sidecar state (`503` if the database does not answer) | |
 | `GET /version` | Version (and git commit) of the running binary | [Versioning](/operations/versioning) |
 
 With [eval mode](/getting-started/configuration#eval-mode) enabled, `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/query` are also registered.

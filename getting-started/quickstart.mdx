@@ -8,7 +8,7 @@ description: "Build gligabao, start the server, then remember and query your fir
 gligabao is pure Go and builds with `CGO_ENABLED=0`, so no C compiler is needed.
 
 ```sh
-./run_build.sh                      # builds build/gligabao and build/gligabao_agent (the deep-research agent with its sub-agents and the knowledge base in process, see the Research agents guide), and build/gligabao_agent_linux_amd64 (the same, for Linux containers: what runs a research in Modal)
+./run_build.sh                      # builds build/gligabao, build/gligabao_agent (the deep-research agent with its sub-agents and the knowledge base in process, see the Research agents guide), build/gligabao_lambda (one remember, query or research per process, no server: see the gligabao_lambda guide), and build/gligabao_agent_linux_amd64 (the same, for Linux containers: what runs a research in Modal)
 export ANTHROPIC_API_KEY=...        # required for remember/query
 export OPENAI_API_KEY=...           # required: embeddings (remember embeds what it stores, query the question)
 ./build/gligabao serve                # listens on :7878 by default
