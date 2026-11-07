@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.52.0] - 2026-11-06
+
+### Added
+- Concepts / Datasets and API reference / Endpoints overview: `GET /v1/gb/datasets/{name}/classes?n=N`, the top classes of the artifact graphs of a dataset, synced with gligabao 0.177.0.
+- Embedding / Hooks: `KnowledgeDataset.TopClasses(ctx, n)`, the same in the Go API with no HTTP call, synced with gligabao 0.178.0.
+
+### Changed
+- API reference / Remember: **graph classification is on by default** (`classify_graph` is `true` for a text unless the request sends `false`; `graph_classes` alone turns it on and is a `400` with `classify_graph: false`; the eval endpoint keeps `false`), `graph_classes` makes the LLM pick the one closest class, and a new paragraph says what the classifier sees (the graph of each artifact, not the raw text). Synced with gligabao 0.176.0.
+
 ## [0.51.0] - 2026-11-04
 
 ### Added
