@@ -15,9 +15,12 @@ Configuration is read from `build/gligabao.toml` (override with `--config`).
 | `openai_api_key` | `OPENAI_API_KEY` | Embeddings, **required**: `remember` embeds what it stores and `query` embeds the question; the server does not start without it |
 | `pinecone_api_key` | `PINECONE_API_KEY` | Hosted vector store |
 | `db_backend` | `"sqlite"` | `"sqlite"` or `"postgres"` (with `postgres_dsn`), see [Database](/getting-started/database) |
-| `vector_store` | `"chromem"` | `"chromem"` (embedded) or `"pinecone"` (hosted) |
+| `vector_store` | `"chromem"` | `"chromem"` (embedded), `"pinecone"` (hosted) or `"s3vectors"` (an Amazon S3 vector bucket, see [S3 vector buckets](/guides/s3-vectors)) |
 | `embedding_dimensions` | `1536` | Vector size |
 | `pinecone_index_host` | `PINECONE_INDEX_HOST` | Data-plane host of the Pinecone index |
+| `s3_vectors_bucket` | `S3_VECTORS_BUCKET` | Existing S3 vector bucket, **required** with `vector_store = "s3vectors"` (AWS credentials come from the standard AWS chain, not from this file) |
+| `s3_vectors_region` | `S3_VECTORS_REGION` | AWS region of the bucket (default: the AWS SDK default) |
+| `s3_vectors_prefix` | `S3_VECTORS_PREFIX` | The "subdirectory" of the bucket: each dataset is the index `<prefix>.<dataset>`, so deployments can share a bucket |
 | `chunk_size` | `1024` | Tokens per chunk, see [Chunking](/guides/chunking) |
 | `chunk_overlap_percent` | `20` | Overlap between chunks |
 | `jev_api_key` | `JEV_API_KEY` | Enables Jev, TypeSafe's system 1 model (`jev_base_url` and `jev_model` are optional overrides) |

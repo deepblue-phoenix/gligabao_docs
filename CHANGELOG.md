@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.53.0] - 2026-11-08
+
+### Added
+- Guides / S3 vector buckets: Amazon S3 Vectors as a vector store (`vector_store = "s3vectors"`), its settings, the index-per-dataset layout with the prefix, behaviour per operation and limits. Documents gligabao 0.179.0.
+- Getting started / Configuration and Guides / Vector storage: the `s3vectors` backend and the `s3_vectors_bucket`, `s3_vectors_region` and `s3_vectors_prefix` settings.
+
 ## [0.52.0] - 2026-11-06
 
 ### Added
