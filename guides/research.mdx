@@ -80,7 +80,7 @@ Answers `202` with the run (`status` `running`, `state` `starting`); the agent g
 
 ### `GET /v1/gb/research/agents`
 
-`{"agents": [...]}`: the [agent definitions](/guides/agent-defs) a research can run, by name, each with `name`, `version`, `description`, `hash`, `source` (the file, or `builtin`), `model`, `max_steps`, `max_cost_usd`, `max_tree_cost_usd`, `knowledge`, `skills` and `subagents` (the roles).
+`{"agents": [...]}`: the [agent definitions](/guides/agent-defs) a research can run, by name, each with `name`, `version`, `description`, `hash`, `source` (the file, or `builtin`), `loop` (`simple` or `investigative`), `model`, `max_steps`, `max_cost_usd`, `max_tree_cost_usd`, `knowledge`, `skills` and `subagents` (the roles).
 
 ### `GET /v1/gb/research`
 
@@ -130,11 +130,12 @@ The **research** view of the [admin UI](/getting-started/configuration#admin-ui)
 - **active agents**, each with a **Stop** button (it asks to confirm);
 - **stopped and finished agents** (all, or only the completed, failed or stopped ones);
 - for every agent, in its row: the number of **children** (sub-agents it spawned), its **running time** (from its start to its end, or to now while it works) and **how long ago** it started (minutes, hours, days or months);
-- a **Details** modal per agent: whether it spawned sub-agents (each with its reason and status, to open or stop), its parent, its report and its states;
+- a **Details** modal per agent: the **model** it ran on (the one recorded for the run: a run started without a model records the server's default model), whether it spawned sub-agents (each with its reason and status, to open or stop), its parent, its report (rendered as Markdown, sanitized as HTML) and its states;
 - for an agent that **failed**, a red **failed** button in its row that opens the error it failed with and the state it failed in;
 - a **Knowledge** button per agent: its **provenance**, see below;
 - a **Temporal plot** button in the **Details** modal (next to **Knowledge**): what the agent did to the facts over time, see below;
-- a green **start agent** button that starts an agent, see below;
+- for an **investigative** run (`phase` set), the Details modal also shows its loop, **phase** and **stop reason**, and an **Investigation** block: the **frontier** as a tree of questions (status, priority, attempts, answer), the **challenges** (target, strategy, negation tried, outcome, evidence) and the latest **notes**. It refreshes with the modal while the run works (`GET /admin/api/research/{id}/investigation`). Claims, sources and the history of the questions are not shown yet;
+- a green **start agent** button that starts an agent, see below (a dropdown next to it picks the kind of agent, **investigative** by default, which runs the built-in `investigator` agent, or **simple**, which runs `default`; an investigative agent runs locally only, so the Modal runner is turned off for it);
 - a **dock** of the agents that work, see below.
 
 **Starting.** The **start agent** button opens a modal with a tall text box for the task (at most 2000 characters; **Ctrl+Enter** submits). The modal also has a **Where it runs** choice: *local* (the default) or *Modal*. The agent is started as the user `admin`, with the defaults of [`POST /v1/gb/research`](#post-v1gbresearch) (20 steps, the server's model, the `main` dataset), and the modal closes when the server accepts it. The **Details** modal of an agent says where it runs.
@@ -287,7 +288,9 @@ SELECT stop_reason, status, COUNT(*) AS runs, AVG(cost_usd) AS avg_cost_usd, AVG
 FROM gb_agent_research_runs WHERE phase <> '' GROUP BY stop_reason, status;
 ```
 
-The ATIF trajectory of an investigative run has one agent step per model call, with the turn, its kind, the state, the phase and the question id in the step's `extra`, and the phase and stop reason in the trajectory's `result` extra.
+With `[code] enabled` in the definition the agent also has `run_code` ([agent-defs.md](/guides/agent-defs#code-the-run_code-tool), [monty-code-execution.md](/guides/monty-code-execution)). Its programs run in a sidecar process (a Python bridge over Pydantic Monty) that the process running the agent starts at the first call and stops with the manager; the settings are `monty_python`, `monty_bin`, `monty_workers` and `monty_request_timeout_s` of `gligabao.toml` (or `GLIGABAO_MONTY_PYTHON`, `MONTY_BIN`).
+
+The ATIF trajectory of an investigative run has one agent step per model call, with the turn, its kind, the state, the phase and the question id in the step's `extra`, and the phase and stop reason in the trajectory's `result` extra. A step that used `run_code` also has `code_runs` in its `extra`: the code, the output, the wall time and the host function calls of each call.
 
 ## Sub-agents
 
@@ -306,4 +309,4 @@ A research agent can spawn **sub-agents**, other research agents that take sub-t
 
 ## Not included yet
 
-Following again, after a restart of the server, the jobs it had running in Modal (their export, and so what they learned, is lost with them); the user's own knowledge base *for* the agents that run in Modal (they start with an empty one of the container's; what they learn is merged back into the user's when they end), the import of an export into a server that has no vector store of the same embedding size (the rows are imported, the vectors are not), other places to run the agent than Modal, cancelling a run by a user (only the admin UI can stop one), a stream of its states (poll `GET /v1/gb/research/{id}`), storing the report itself in a dataset, waiting for the queued snippets before a run ends, counting the cost of `remember` and `query` in the run's cost, recording the agent's model calls in `gb_inferences`, and, for the investigative loop, the frontier tree in the admin UI, parallel workers on the frontier and sub-agents sharing the notes. See the [roadmap](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/roadmap/ROADMAP.md).
+Following again, after a restart of the server, the jobs it had running in Modal (their export, and so what they learned, is lost with them); the user's own knowledge base *for* the agents that run in Modal (they start with an empty one of the container's; what they learn is merged back into the user's when they end), the import of an export into a server that has no vector store of the same embedding size (the rows are imported, the vectors are not), other places to run the agent than Modal, cancelling a run by a user (only the admin UI can stop one), a stream of its states (poll `GET /v1/gb/research/{id}`), storing the report itself in a dataset, waiting for the queued snippets before a run ends, counting the cost of `remember` and `query` in the run's cost, recording the agent's model calls in `gb_inferences`, and, for the investigative loop, claims, sources and question history in the admin UI, parallel workers on the frontier and sub-agents sharing the notes. See the [roadmap](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/roadmap/ROADMAP.md).

@@ -22,6 +22,10 @@ export OPENAI_API_KEY=...           # required: embeddings (remember embeds what
   Run `./run_tests.sh` to run the test eval. Plain `go build ./cmd/gligabao` and `go test ./...` also work.
 </Tip>
 
+<Tip>
+  The Docker image also includes the code sandbox (a venv with [Pydantic Monty](/guides/monty-code-execution) in `/opt/monty`), which only agents with `[code] enabled` use; a bare-metal install needs `pip install pydantic-monty` and `monty_python` / `monty_bin` in `gligabao.toml` for those agents.
+</Tip>
+
 ## 2. Remember something
 
 ```sh

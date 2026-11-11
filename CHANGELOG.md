@@ -4,6 +4,17 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.56.0] - 2026-11-13
+
+### Added
+- Guides: new page "Code execution for the investigative agent with Pydantic Monty" (`/guides/monty-code-execution`), the `run_code` tool (documents gligabao 0.187.0 and 0.188.0).
+- Agent definitions: the `[code]` table and the built-in `investigator` agent.
+
+### Changed
+- Research agents: the admin UI shows the model of a run, the report as Markdown, the Investigation block (frontier, challenges, notes) and a dropdown to start an investigative or a simple agent (gligabao 0.185.0, 0.186.0); the agent list gives each agent's `loop`; the `run_code` tool and its `code_runs` trajectory entry (gligabao 0.187.0).
+- Quickstart: the Docker image includes the code sandbox.
+- The database schema files are named at their new path `sql/schema.sql` (gligabao 0.186.1).
+
 ## [0.55.0] - 2026-11-13
 
 ### Added
