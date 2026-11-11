@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.54.0] - 2026-11-12
+
+### Added
+- Guides: four new pages for the deep-research loop: Deep-research loop design (frontier, notes, claims, challenges, two phases, gates, breakers, schema), Stage 1 and Stage 2 implementation notes, and Influences. Documents gligabao 0.179.1 to 0.182.1.
+- Guides / Research agents: the investigative loop (`phase`, `stop_reason`, extra states, notes file and S3 notes bucket, SQL queries to read a run), the `investigate` request option and what the loop does not do yet.
+- Guides / Agent definitions: `loop` and the `[investigate]` table with every knob.
+- Guides / The deep-research agent: a section on the investigative loop and the updated "Not included yet".
+
 ## [0.53.0] - 2026-11-08
 
 ### Added
