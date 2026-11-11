@@ -4,6 +4,18 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.55.0] - 2026-11-13
+
+### Added
+- Embedding / Remember: reads and writes: what each stage of the remember pipeline reads from and writes to the database and the vector store.
+
+### Changed
+- Guides: `gligabao_lambda` is now `gligabao_worker` (page `/guides/worker`, replaces `/guides/lambda`). It runs only `remember` and `query`, works only on PostgreSQL and a remote vector store (Pinecone or S3 Vectors), default `--user` is `worker`, and it has no `--export`, SQLite or `research` command. Documents gligabao 0.183.0 and 0.184.0.
+- Guides: the packages `internal/agent_defs` and `internal/agent_memory` are named at their new path `internal/agent/...` (gligabao 0.182.3).
+
+### Removed
+- The `/guides/lambda` page (moved to `/guides/worker`).
+
 ## [0.54.0] - 2026-11-12
 
 ### Added
