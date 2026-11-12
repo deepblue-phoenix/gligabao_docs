@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.57.0] - 2026-11-12
+
+### Added
+- Research agents: the tracked errors (`GBerror`, table `gb_errors`) of the research agents, the agent loop and the memory pipelines (gligabao 0.193.0 to 0.196.0).
+
+### Changed
+- Sub-agents: the page now describes the workers of the investigative loop (`investigate.max_parallel`, the findings, the reducer, limits, tracking, `run_code` in workers) and the removal of `spawn_subagent`, `wait_subagents` and `[spawn]` from the simple loop (gligabao 0.189.0, 0.190.0). Agent definitions, research, the deep-research pages and the agent page follow: new `[investigate]` knobs, states `delegating` and `waiting`, `parent_id` listing, `loop` and `max_parallel` in the agent list.
+- Research agents: the `no_remember` option and `--no-remember` (the investigative loop remembers its final report; gligabao 0.192.0), and the admin UI definitions modal (0.191.0).
+- The package moves `internal/ai` to `internal/llm`, `internal/ai/atif` to `internal/atif`, `internal/monty` to `internal/agent/code_sandbox` and `internal/agent_defs` to `internal/agent/agent_defs` are named at their new paths.
+
 ## [0.56.0] - 2026-11-13
 
 ### Added
