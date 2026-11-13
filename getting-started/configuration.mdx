@@ -24,6 +24,9 @@ Configuration is read from `build/gligabao.toml` (override with `--config`).
 | `chunk_size` | `1024` | Tokens per chunk, see [Chunking](/guides/chunking) |
 | `chunk_overlap_percent` | `20` | Overlap between chunks |
 | `jev_api_key` | `JEV_API_KEY` | Enables Jev, TypeSafe's system 1 model (`jev_base_url` and `jev_model` are optional overrides) |
+| `linkup_api_key` | `LINKUP_API_KEY` | Linkup API key, needed when a research search or fetch provider is `linkup` (see [Web search and fetch providers](/guides/web-providers)) |
+| `research_search_provider` | `anthropic` | Default search service of the research agents when a request names none: `anthropic`, `linkup` or `keenable` |
+| `research_fetch_provider` | `local` | Default fetch service of the research agents when a request names none: `local`, `linkup` or `keenable` |
 | `sidecar_url` | `SIDECAR_URL`, else `http://127.0.0.1:8787` | Base URL of the Python sidecar's REST API, the only service the Go server calls for [training jobs](/training/overview); the sidecar proxies to Modal |
 | `eval` | `false` | Register the eval endpoints |
 | `admin_ui` | `false` | Serve the admin panel |

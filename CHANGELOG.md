@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.58.0] - 2026-11-14
+
+### Added
+- Guides: new page "Web search and fetch providers" (`/guides/web-providers`): the `internal/sys/web` wrapper, the `anthropic`, `local`, `linkup` and `keenable` providers, how to choose them and what the tools do with the settings (documents gligabao 0.197.0 to 0.201.0).
+
+### Changed
+- Research, CLI, agent definitions, the standalone agent and configuration pages: `search_provider` / `fetch_provider` (`--search-provider`, `--fetch-provider`), `research_search_provider` / `research_fetch_provider` and `linkup_api_key` / `LINKUP_API_KEY`.
+
 ## [0.57.0] - 2026-11-12
 
 ### Added
