@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.58.1] - 2026-11-14
+
+### Added
+- Graph export: new section "Graph of one artifact" for `GET /v1/gb/datasets/{name}/artifacts/{id}/graph`, with links from the API overview and the artifacts page (documents gligabao 0.202.0).
+
 ## [0.58.0] - 2026-11-14
 
 ### Added
