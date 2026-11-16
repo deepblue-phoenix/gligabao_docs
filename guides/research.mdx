@@ -20,13 +20,21 @@ A **run** (`gb_agent_research_runs`) is one execution of the agent on a topic. I
 | `status` | Meaning |
 | -------- | ------- |
 | `running` | the agent is working (an **active** agent) |
-| `completed` | it ended with a report (`report`) |
+| `completed` | it ended with a report (`report`, with its `summary`) |
 | `failed` | it could not finish: a model call failed, or the server stopped (`error` says why) |
 | `stopped` | somebody stopped it before it ended (from the [admin UI](#admin-ui)); `error` says who, and there is no report |
 
+### The report and its summary
+
+The report of a run is not a column of the run: it is a row of **`gb_agent_research_reports`** (`run_id`, `report`, `summary`, `created_at`; at most one per run), written in the same transaction that ends the run. `GET /v1/gb/research/{id}`, the list, the stream, the CLI and the admin UI show both as `report` and `summary` of the run. A worker's row holds its findings (JSON) and has no summary; a failed or stopped run has no row.
+
+The **`summary`** is shorter and at a higher level than the report (one to three paragraphs, at most about 150 words: the question, the main conclusions, how reliable they are). It is made at the end of a research that completed, by **one separate model call** (`internal/agent_research/summary.go`): no tools and none of the agent's context, only the topic and the finished report, on the model of the run. It is not part of the agent's reasoning, and it is not a step of the run; what it costs (tokens and USD) is added to the totals of the run, and it applies to runs of the `modal` runner too (the server makes it). If the call fails the run still completes, with the report and an empty `summary` (a warning is logged).
+
+**Migration (0.207.0).** Before it the report was the column `gb_agent_research_runs.report`. When the manager starts it checks whether that column still exists; if it does, in the background it copies every report into `gb_agent_research_reports` (with the summary of each research, made by the same call; the findings of workers get none) and then drops the column, so the migration never runs again. Without an LLM client it waits for the next start; a failed summary stops it without dropping the column, and the next start goes on. Reports that were not migrated yet are not shown until then. The code is all in `internal/agent_research/migrate_reports.go`, marked as a one-off to remove.
+
 A run left `running` by a process that died is marked `failed` ("interrupted") when the server starts again (the job of a run in Modal is not followed again after a restart: see [the runner](#where-the-agent-runs-the-runner)).
 
-A **state** (`gb_agent_research_states`) is one stage of its work. A row is inserted every time the agent moves from one state to the next; the table is append-only (a state is only ended, never rewritten), and `state` of the run is always the last row's. The states of a run:
+A **state** (`gb_agent_research_states`) is one stage of its work (the full guide is [states.md](/guides/states)). A row is inserted every time the agent moves from one state to the next; the table is append-only (a state is only ended, never rewritten), and `state` of the run is always the last row's. The states of a run:
 
 | `state` | What the agent is doing | `detail` |
 | ------- | ----------------------- | -------- |
@@ -65,11 +73,11 @@ Starts an agent. Body:
 - `topic` (required, at most 2000 characters): what to research. A question, or a subject to write a report on.
 - `agent` (optional, default `default`): the [agent definition](/guides/agent-defs) to run (`GET /v1/gb/research/agents` lists them); an unknown one is a `400`. `agent_version` (optional) is a constraint its version must meet (`1.2.0`, `>=1.0`, `^1.2`); a mismatch is a `400`. The run records `agent_name`, `agent_version` and `agent_hash`.
 - `max_cost_usd` (optional, 0 = none): a cap in USD on what the whole research may spend, sub-agents included. It can lower the caps of the definition and of the server (`research_max_cost_usd`), never raise them. When it is reached the agents write their reports and the report says so ([cost caps](/guides/agent-defs#limits-cost-caps)).
-- `max_steps` (optional, default: the `max_steps` of the definition, 20 for `default`; at most 40): the most model calls the agent makes, the last of which writes the report. More steps let it search and read more, and cost more.
+- `max_steps` (optional, default: the `max_steps` of the definition: 20 for `default`, 60 for `investigator`): the most model calls (steps) the agent makes, the last of which writes the report. More steps let it search and read more, and cost more. The range depends on the agent's loop: 1 to 40 for the simple loop, 2 to 300 for the investigative one (a `400` outside it, naming the range). `GET /v1/gb/research/agents` lists the range of each agent (`steps_min`, `steps_max`).
 - `model` (optional): the model it runs on, which must support Anthropic's web search tool. Default: the `model` of the definition, else the server's default model. It is the model of the main agent; its workers run on the same model.
 - `dataset` (optional, default `main`): the dataset of the user's knowledge base the agent queries and remembers into ([below](#the-knowledge-base)). It is created by the first `remember` if it does not exist; a bad name is a `400`. It is not stored with the run. With the `modal` runner it is the dataset the agent's knowledge lands in when the agent ends ([below](#what-comes-back-the-import)).
 - `no_remember` (optional, default `false`): with the [investigative loop](/guides/deep-research-loop), when the root agent has written the final report, the run makes one explicit, waiting `remember` call with it (titled with the topic) into `dataset`, through the remember pipeline, so that knowledge builds up (the run is in the state `remembering` meanwhile). `true` turns that call off. A failed call is logged and does not fail the research. The agent's `remember` tool is not affected, and the call is skipped for agents without a knowledge base. The `modal` runner does not use the investigative loop.
-- `investigate` (optional): the knobs of the [investigative loop](#the-investigative-loop) (`max_iterations`, `max_total_tokens`, `min_sources`, ... the same names as the `[investigate]` table of the [agent definition](/guides/agent-defs#loop-and-investigate-the-investigative-loop)), over those of the definition. Only for an agent with `loop = "investigative"`: with the simple loop they are a `400`. With that loop `max_steps` is a `400` too (`max_iterations` replaces it), and so is `runner: "modal"`.
+- `investigate` (optional): the knobs of the [investigative loop](#the-investigative-loop) (`max_total_tokens`, `min_sources`, ... the same names as the `[investigate]` table of the [agent definition](/guides/agent-defs#loop-and-investigate-the-investigative-loop)), over those of the definition. Only for an agent with `loop = "investigative"`: with the simple loop they are a `400`. With the investigative loop `runner: "modal"` is a `400` too.
 - `search_provider` and `fetch_provider` (optional): the service that runs the agents' `web_search` tool and the one that reads the pages of `fetch_url` (the sub-agents use the same). The built-in defaults are `anthropic` for search (Anthropic's cloud web search) and `local` for fetch (a plain HTTP GET from the server); `research_search_provider` and `research_fetch_provider` in `gligabao.toml` change those defaults, and a request overrides them. The two are chosen independently. `linkup` and `keenable` are available for search and fetch (`linkup` needs `linkup_api_key` / `LINKUP_API_KEY`, a start without it is refused; `keenable` is keyless by default). A name that is not available for the operation (`local` for search, `anthropic` for fetch) is a `400`, like any other unknown name. The `modal` runner supports only `anthropic` and `local` (a `400` otherwise). The providers are not stored with the run. Details: [Web search and fetch providers](/guides/web-providers). CLI: `--search-provider`, `--fetch-provider` (also of `gligabao_agent`); MCP: the same names as here.
 - `runner` (optional, default `local`): where the agent runs, `local` (in the server, as always) or `modal` (the `gligabao_agent` binary in a Modal container, see [below](#where-the-agent-runs-the-runner)). Any other value is a `400`. The run says which one it has (`runner`).
 
@@ -77,13 +85,13 @@ Answers `202` with the run (`status` `running`, `state` `starting`); the agent g
 
 ```json
 {"id": 7, "user_id": "u1", "topic": "...", "status": "running", "state": "starting", "model": "", "max_steps": 20, "runner": "local", "agent_name": "default", "agent_version": "1.0.0", "agent_hash": "9f2c...",
- "steps": 0, "tool_calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0, "report": "", "error": "",
+ "steps": 0, "tool_calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0, "report": "", "summary": "", "error": "",
  "created_at": "2026-11-01T10:00:00.120Z", "finished_at": null}
 ```
 
 ### `GET /v1/gb/research/agents`
 
-`{"agents": [...]}`: the [agent definitions](/guides/agent-defs) a research can run, by name, each with `name`, `version`, `description`, `hash`, `source` (the file, or `builtin`), `loop` (`simple` or `investigative`), `model`, `max_steps`, `max_cost_usd`, `max_tree_cost_usd`, `knowledge`, `skills` and `max_parallel` (the workers its investigative loop runs at once; 1: none).
+`{"agents": [...]}`: the [agent definitions](/guides/agent-defs) a research can run, by name, each with `name`, `version`, `description`, `hash`, `source` (the file, or `builtin`), `loop` (`simple` or `investigative`), `model`, `max_steps` (its default), `steps_min` and `steps_max` (the range `max_steps` may have for its loop), `max_cost_usd`, `max_tree_cost_usd`, `knowledge`, `skills` and `max_parallel` (the workers its investigative loop runs at once; 1: none).
 
 ### `GET /v1/gb/research`
 
@@ -98,10 +106,10 @@ Sub-agents are runs like any other and are in the list too, with `parent_id`, `n
 
 ### `GET /v1/gb/research/{id}`
 
-Reads one run with its `states`, in the order they were entered. The `report` is in it once `status` is `completed`.
+Reads one run with its `states`, in the order they were entered. The `report` and its `summary` are in it once `status` is `completed`.
 
 ```json
-{"id": 7, "status": "completed", "state": "completed", "steps": 5, "tool_calls": 6, "cost_usd": 0.13, "report": "# ...",
+{"id": 7, "status": "completed", "state": "completed", "steps": 5, "tool_calls": 6, "cost_usd": 0.13, "report": "# ...", "summary": "...",
  "states": [
    {"seq": 1, "state": "starting", "step": 0, "detail": "", "error": "", "started_at": "...", "finished_at": "..."},
    {"seq": 2, "state": "thinking", "step": 1, "detail": "step 1 of 20", "error": "", "started_at": "...", "finished_at": "..."},
@@ -112,7 +120,21 @@ Reads one run with its `states`, in the order they were entered. The `report` is
  ]}
 ```
 
-To follow a run, poll this route (or `research_get`, or `gligabao research get`).
+To follow a run, poll this route (or `research_get`, or `gligabao research get`), or stream it ([below](#get-v1gbresearchidstream)).
+
+### `POST /v1/gb/research/{id}/stop`
+
+Stops a research of the user that is working (and its sub-agents): the run ends as `stopped`, with `error` saying `the user`, and no report. It answers `200` with the run as it is then. `404` for an unknown id or another user's research (the admin route `POST /v1/gb/admin/api/research/{id}/stop` is the one that stops any user's), `409` if it has ended already, `400` for a bad id.
+
+### `GET /v1/gb/research/{id}/stream`
+
+Server-Sent Events that follow a research until it ends; for a finished one they replay it (one snapshot, then `done`). The route is the same for the research of any user's own id; the research of another user is a plain `404` (before the stream starts).
+
+- `snapshot`: everything a UI shows about the research, as of one moment: `{"run": {...}, "subagents": [...], "investigation": {...}}`. `run` is the run as `GET /v1/gb/research/{id}` returns it (with its `states` and, once completed, its `report`), `subagents` the workers of the investigative loop in the order they were started (runs, without states), `investigation` what the investigative loop built (`phase`, `stop_reason`, the `questions` of the frontier, the `challenges` and the latest `notes`, as in the admin UI) and `null` for a run of the simple loop. The first one is sent at once, then one each time something changed (the server reads the run once a second).
+- `done`: `{"status": "completed"|"failed"|"stopped"}`, after the last snapshot, when the run is not active any more. The stream ends.
+- `error`: `{"error": "..."}` if the run cannot be read any more. The stream ends.
+
+A comment line (`: ping`) is written every 10 seconds of silence to keep proxies from closing the stream. Implementation: `internal/api/research/stream.go`.
 
 ## CLI
 
@@ -226,8 +248,8 @@ The tools are on whenever the server has an LLM for the memory (the same conditi
 An agent whose definition says `loop = "investigative"` runs the [deep-research loop](/guides/deep-research-loop) instead of the simple one (the simple loop is the default and does not change). It works in two phases on a frontier of questions with a notes file, and a run records where it is:
 
 - `phase` of the run (`gb_agent_research_runs.phase`): `exploration` (the cycle on the frontier) or `synthesis` (the report is written from the notes, without search tools); `''` for a run of the simple loop and for runs made before 0.181.0.
-- `stop_reason`: `''` while the run explores normally; `frontier_exhausted` (no actionable question was left and the final check queued nothing), `breaker:iterations`, `breaker:tokens` or `breaker:cost` (a limit ended the exploration; the run is **not** failed, it writes its report with the cut and the open questions as gaps) are set when exploration ends; `finalized` is the reason of a run whose exploration ended by its own gate (`finish_exploration`) and whose report was accepted. A report that is accepted after a cut keeps the cut as the reason. A breaker that fires in synthesis (the reserve is used up) fails the run, with `stop_reason` and the `error` naming the breaker.
-- `steps` counts the turns (model calls), and the limit is `max_iterations` (default 60), not `max_steps`.
+- `stop_reason`: `''` while the run explores normally; `frontier_exhausted` (no actionable question was left and the final check queued nothing), `breaker:steps`, `breaker:tokens` or `breaker:cost` (a limit ended the exploration; the run is **not** failed, it writes its report with the cut and the open questions as gaps) are set when exploration ends; `finalized` is the reason of a run whose exploration ended by its own gate (`finish_exploration`) and whose report was accepted. A report that is accepted after a cut keeps the cut as the reason. A breaker that fires in synthesis (the reserve is used up) fails the run, with `stop_reason` and the `error` naming the breaker.
+- `steps` counts the turns (model calls), and the limit is `max_steps` (default 60, 2 to 300 for this loop).
 
 The states of an investigative run (`gb_agent_research_states.state`) are the ones above plus: `planning` (the first level of questions is asked for), `selecting` (the loop picks the next question, no model call; detail `frontier_next`), `extracting` (forced extraction: only the notes tools), `verifying` (an UNVERIFIED claim of the current question has no challenge yet), `challenging` (a challenge is open), `consolidating` (the notes are over `notes_max_tokens`) and `synthesizing`. The `detail` of a turn is `turn 7 of 60, question q_003`. A tool call has its usual state (`searching`, `reading`, `using_tool`, ...); `fetch_page` is `reading`.
 

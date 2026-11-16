@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.59.0] - 2026-11-20
+
+### Added
+- Guides: new page "States of a research run" (`/guides/states`): what each state means, the investigative-loop states, the columns of the history and how to read it over REST, MCP, the CLI and SSE (documents gligabao 0.206.1).
+- Research: `GET /v1/gb/research/{id}/stream` (SSE snapshots of a research) and `POST /v1/gb/research/{id}/stop` (a user stops their own research); the report now comes with a `summary`, and the one-off migration of reports to `gb_agent_research_reports` is described (documents gligabao 0.205.0, 0.207.0 and 0.209.0).
+- Images: the graph of an image (`description`, `artifact_id`, `entities`, `edges`, table `gb_image_graphs`) and streaming progress with `"stream": true` (documents gligabao 0.203.0 and 0.204.0).
+
+### Changed
+- Agent definitions, research, MCP and the deep-research loop pages: one `max_steps` limit in both loops (1 to 40 simple, 2 to 300 investigative, default 60), `steps_min`/`steps_max` in the agents list, `max_iterations` removed and the `breaker:steps` stop reason (documents gligabao 0.208.0).
+
 ## [0.58.1] - 2026-11-14
 
 ### Added
