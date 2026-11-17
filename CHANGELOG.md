@@ -4,6 +4,11 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.60.0] - 2026-11-20
+
+### Added
+- Images: image files can be kept in an Amazon S3 bucket (`image_store = "s3"`, `image_s3_bucket`, region, prefix, endpoint; per-user directories and access control) and are accessed through `imagestore.Store` (documents gligabao 0.210.0).
+
 ## [0.59.0] - 2026-11-20
 
 ### Added
