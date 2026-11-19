@@ -4,6 +4,19 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.61.0] - 2026-11-19
+
+### Added
+- Geo: the geo manager (one goroutine, a query queue served before the remember queue), `geo_sync`, pending places (`gb_geo_pending`), the geo sweeper, `GET /v1/gb/geo` and the `queue_geo` trajectory step (documents gligabao 0.212.0).
+- Remember: ontology grounding (`ontology_grounding`, `ontologies`, `ontology_grounding_mode`, the `ground_graph` stage, the `ontology_grounding` summary, the tags on entities and edges and `gb_ontology_events`) (documents gligabao 0.216.0).
+- Evals: ATIF traces in an Amazon S3 bucket (`atif_s3_bucket`, `atif_s3_prefix`, one directory per user, creation timestamp in the name) (documents gligabao 0.211.0 to 0.214.0).
+- Images: `remember --image`, the admin UI image parts and the code locations of the image store.
+
+### Changed
+- Ontologies: the page is rewritten for the YAML/JSON ontology language that replaces OWL (versions, the list/read/events endpoints, the ontology directories, S3 storage of the documents) (documents gligabao 0.216.0).
+- Research: the research S3 settings are `research_s3_bucket`, `research_s3_region` and `research_s3_notes_prefix` (default `research/investigative_notes`) (documents gligabao 0.213.0 and 0.215.0).
+- Worker: it records places as pending and leaves their resolving to the server.
+
 ## [0.60.0] - 2026-11-20
 
 ### Added
