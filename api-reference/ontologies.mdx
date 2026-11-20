@@ -3,7 +3,7 @@ title: "Ontologies"
 description: "Describe a domain in YAML or JSON and ground the graph of remember against it."
 ---
 
-An ontology describes the concepts of a domain (its **classes**), how they relate (its **relations**) and what can be said about them (their **properties**). gligabao ontologies are written in a small declarative language in **YAML or JSON**: a typed property graph, not OWL. `remember` can ground the graph it extracts against them: the entities and edges are checked against the ontology, tagged with what they matched, and (in strict mode) what does not conform is dropped. See [Grounding in `remember`](#grounding-in-remember).
+An ontology describes the concepts of a domain (its **classes**), how they relate (its **relations**) and what can be said about them (their **properties**). gligabao ontologies are written in a small declarative language in **YAML or JSON**: a typed property graph, not OWL. `remember` can ground the graph it extracts against them: the entities and edges are checked against the ontology, tagged with what they matched, and (in strict mode) what does not conform is dropped. See [Grounding in `remember`](#grounding-in-remember) and [/api-reference/graph-enrichment](/api-reference/graph-enrichment) (the ontology neighborhood it adds to the graph).
 
 The design and the decisions behind it are in [ontology-grounding-plan.md](https://github.com/deepblue-phoenix/gligabao/blob/main/docs/ontologies/ontology-grounding-plan.md).
 
@@ -173,6 +173,10 @@ What grounding made of the nodes and edges of the `remember` calls that used the
 
 See [the events table](#the-events-table) for the fields and the reason codes.
 
+## Admin UI
+
+The "ontologies" view of the admin UI draws an ontology as a force-directed graph (d3): the classes are the nodes, laid out by depth in the hierarchy and coloured by their root class; solid arrows go from a class to its parents (`subClassOf`), dashed arrows are the relations (one from each class of the `domain` to each class of the `range`). The toggles show or hide the relations and their names, and a click on a class shows its description, aliases, properties (with the inherited ones) and relations, and fades the rest. It reads `GET /v1/gb/admin/api/ontologies?db=<name>` (the standard database by default), which lists the ontologies of every user with their `spec`.
+
 ## Ontology directories
 
 `ontology_dirs` in `gligabao.toml` (relative paths are relative to the file; `serve --ontology-dir`, repeatable, and `ServeOptions.OntologyDirs` override it) lists directories of ontology documents. They are listed explicitly and **not scanned**: nothing is loaded at startup. A request with `"file": "market.yaml"` instead of `content` reads that file from the first directory that has it, and stores it like `content`, under the requesting user. The name must be a plain file name (no directory, not starting with `.`): it cannot reach outside the directories. The Docker image ships `build/ontology/` as `/app/ontology`.
@@ -200,11 +204,13 @@ With `ontology_grounding: true`, `remember` checks the entities and edges the LL
 
 **`strict`**: whatever does not conform (an unknown type or relation, a domain or range violation, a property that is invalid or missing, an edge whose end was dropped or is not listed) is **dropped before the store stage**: it is not stored, and an edge never points at an entity that was dropped.
 
+**The ontology neighborhood** is added to the graph in both modes, next to the tags: the classes the entities matched and their ancestors as `ontology_class` entities, `is_a` and `subclass_of` edges, and the ontology relations between those classes. Only what matched is brought in. See [/api-reference/graph-enrichment](/api-reference/graph-enrichment).
+
 The grounding is the `ground_graph` stage of the [run log](/api-reference/remember#run-log), between the extraction of the text (or each chunk) and its reconciliation and storage. It runs on no model and never fails the call. Entities and edges of the enrichment stages (web search results, series observations) are not grounded.
 
 ### What is stored on the graph
 
-The rows get three nullable columns, `NULL` when never grounded (the rows of a call without grounding, and rows made before): `ontology_version` (the version of the ontology that defines the class or relation, or of the one the call was grounded against, if it resolved to nothing), `ontology_class` (the canonical class name; for an edge, the relation; `NULL` if it resolved to nothing) and `ontology_valid` (it matched with no violation). An entity is shared between artifacts: a mention that was grounded replaces the tags of the stored entity, one that was not leaves them.
+The rows get four nullable columns, `NULL` when never grounded (the rows of a call without grounding, and rows made before): `ontology_version` (the version of the ontology that defines the class or relation, or of the one the call was grounded against, if it resolved to nothing), `ontology_class` (the canonical class name; for an edge, the relation; `NULL` if it resolved to nothing), `ontology_valid` (it matched with no violation) and `origin_type` (`extracted` for what the LLM extracted, `ontology` for the entities and edges that [graph enrichment](/api-reference/graph-enrichment) added from the ontology). An entity is shared between artifacts: a mention that was grounded replaces the tags of the stored entity, one that was not leaves them.
 
 The `properties` of an entity or an edge are validated but **not stored** (the graph has no properties yet).
 
@@ -250,14 +256,14 @@ Indexes: `artifact_id`, `ontology_id`, (`dataset_id`, `created_at`).
 
 ### Extraction schema
 
-`Registry.ExtractionJSON()` (`internal/memory/memory_ontology/ontospec`) compiles the ontology into a JSON Schema (draft 2020-12) of the extraction output: `entities` is an array of `anyOf` branches, one per class (`type` a `const`, the properties of the class and its ancestors with their `enum` and `pattern`, `required`, `additionalProperties: false`), and `edges` one per relation (`relation` a `const`, its properties, and `valid_at` / `invalid_at` if it is `temporal`). The domain and range cannot be written in JSON Schema: they are in the description of the branch and checked by the grounding.
+`CompiledOntology.ExtractionJSON()` (`internal/memory/memory_ontology/ontospec`) compiles the ontology into a JSON Schema (draft 2020-12) of the extraction output: `entities` is an array of `anyOf` branches, one per class (`type` a `const`, the properties of the class and its ancestors with their `enum` and `pattern`, `required`, `additionalProperties: false`), and `edges` one per relation (`relation` a `const`, its properties, and `valid_at` / `invalid_at` if it is `temporal`). The domain and range cannot be written in JSON Schema: they are in the description of the branch and checked by the grounding.
 
 ## Versions, storage and hot swap
 
 - **`gb_ontologies`** (relational database): `id`, `user_id`, `name`, `description`, `format`, `version`, `spec` (the ontology as JSON: JSONB in PostgreSQL, TEXT in SQLite), `size_bytes`, `sha256` (of the latest document), `classes`, `relations`, `properties` (counts), `created_at`, `updated_at`; unique (`user_id`, `name`).
 - **`gb_ontology_versions`**: the history, one row per save: `ontology_id` → `gb_ontologies` (cascade), `version`, `format`, `content` (the document as it was sent), `spec`, `sha256`, `created_at`.
 - The **`version`** is an integer the server bumps on every save (the `version` field of a document is only a label the author gives it). It is what is stamped on the nodes and edges.
-- In memory, a `Registry` per (user, ontology) is compiled from the spec and kept behind an atomic pointer (`memory_ontology.Registries`). A save compiles the new registry and swaps the pointer: the calls that are running keep the registry they started with, and the next ones get the new one. A registry that is not in memory (after a restart, or after a save by another server) is compiled from the database on first use.
+- In memory, a `CompiledOntology` per (user, ontology) is compiled from the spec and kept behind an atomic pointer (`memory_ontology.CompiledOntologies`). A save compiles the new compiled ontology and swaps the pointer: the calls that are running keep the compiled ontology they started with, and the next ones get the new one. A compiled ontology that is not in memory (after a restart, or after a save by another server) is compiled from the database on first use.
 - With `ontology_s3_bucket` (`ONTOLOGY_S3_BUCKET`, an existing bucket, with `ontology_s3_region`) set, the documents are also stored in S3, one directory per user: `<ontology_s3_prefix>/<user>/<name>/<timestamp>_<create|update>.<yaml|json>` (the prefix defaults to `ontologies`, also `ONTOLOGY_S3_PREFIX`). Documents are never overwritten; a failed S3 write is logged and does not fail the request. They are written by an S3 client dedicated to the ontologies (`memory_ontology/archive.go`).
 
 ## The market ontology
@@ -268,6 +274,6 @@ Indexes: `artifact_id`, `ontology_id`, (`dataset_id`, `created_at`).
 
 - OWL is not supported (the OWL parser, `gb_onto_classes` and `gb_onto_edges` were removed): there are no individuals, no reasoning and no consistency checking beyond the checks above.
 - There is no endpoint to delete an ontology, and no merging of a fragment into a stored ontology: send the whole document.
-- `query` does not use ontologies: **subclass expansion at query time** (`type IN descendants`; `Registry.Expand` is there for it) and a **background re-validation** of the stored graph when an ontology changes are a later phase. The tags on the rows say which version they were grounded against.
+- `query` does not use ontologies: **subclass expansion at query time** (`type IN descendants`; `CompiledOntology.Expand` is there for it) and a **background re-validation** of the stored graph when an ontology changes are a later phase. The tags on the rows say which version they were grounded against.
 - An entity's `properties` are validated, not stored.
 - Existing databases: the OWL ontologies (`gb_onto_*`, the old `gb_ontologies`) are dropped at startup, and the new tables and the three columns of `gb_entities` and `gb_edges` are created or added. Load ontologies again, in the new format.

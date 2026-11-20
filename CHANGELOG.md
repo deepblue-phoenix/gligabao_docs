@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.62.0] - 2026-11-21
+
+### Added
+- A new page, Graph enrichment: the ontology neighborhood that grounding adds to the graph (`ontology_class` entities, `is_a` and `subclass_of` edges, ontology relations) and the `origin_type` column (documents gligabao 0.218.0).
+- Remember: `GET /v1/gb/remember/runs` and `/runs/{id}` for the runs of a user, and the `params` of a run now hold every flag of the pipeline (documents gligabao 0.219.0 and 0.219.1).
+- Ontologies: the admin UI ontologies view with its d3 graph (documents gligabao 0.217.0).
+
+### Changed
+- Ontologies: the compiled form of an ontology is called `CompiledOntology` instead of registry (documents gligabao 0.216.1).
+
 ## [0.61.0] - 2026-11-19
 
 ### Added

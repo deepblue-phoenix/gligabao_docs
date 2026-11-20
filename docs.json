@@ -61,7 +61,7 @@
           },
           {
             "group": "Data",
-            "pages": ["api-reference/ontologies", "api-reference/timeseries", "api-reference/git-export"]
+            "pages": ["api-reference/ontologies", "api-reference/graph-enrichment", "api-reference/timeseries", "api-reference/git-export"]
           },
           {
             "group": "Service",
