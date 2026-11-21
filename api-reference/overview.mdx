@@ -22,7 +22,7 @@ All endpoints of users take the user from the `gb-user-id` header (never from th
 | `GET /v1/gb/status` | Status: version, commit hash, database and sidecar state (`503` if the database does not answer) | |
 | `GET /version` | Version (and git commit) of the running binary | [Versioning](/operations/versioning) |
 
-With [eval mode](/getting-started/configuration#eval-mode) enabled, `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/query` are also registered.
+The [user evals](/evals/user-evals) are always on: `/v1/gb/evals/**` (see the routes there).
 
 ## Go client
 

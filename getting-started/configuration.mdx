@@ -1,6 +1,6 @@
 ---
 title: "Configuration"
-description: "The gligabao.toml config file, API keys, vector store, prices and eval/admin modes."
+description: "The gligabao.toml config file, API keys, vector store, prices, evals and the admin UI."
 ---
 
 Configuration is read from `build/gligabao.toml` (override with `--config`).
@@ -28,7 +28,7 @@ Configuration is read from `build/gligabao.toml` (override with `--config`).
 | `research_search_provider` | `anthropic` | Default search service of the research agents when a request names none: `anthropic`, `linkup` or `keenable` |
 | `research_fetch_provider` | `local` | Default fetch service of the research agents when a request names none: `local`, `linkup` or `keenable` |
 | `sidecar_url` | `SIDECAR_URL`, else `http://127.0.0.1:8787` | Base URL of the Python sidecar's REST API, the only service the Go server calls for [training jobs](/training/overview); the sidecar proxies to Modal |
-| `eval` | `false` | Register the eval endpoints |
+| `evals_s3_bucket` (and the other `evals_*` settings) | `EVALS_S3_BUCKET`, empty | The meta bucket of the eval files of the users; empty = the local directory `evals_local_dir`. The evals are always on; the other settings (`evals_s3_region`, `evals_s3_prefix`, `evals_s3_endpoint`, `evals_trajectory_dir`, the limits, the cost caps, the retention and the heartbeat) are in [User evals](/evals/user-evals) |
 | `admin_ui` | `false` | Serve the admin panel |
 | `geo` | `false` | Make `remember` find the places among the entities it extracts and store their coordinates (`gb_entity_geo`), using the public Nominatim geocoder of OpenStreetMap; costs one more LLM call per text and sends the names of places to the geocoder. `serve --geo` turns it on. See [Geo](/guides/geo) |
 | `geo_radius_km` | `50` | The default radius in kilometers of the nearby search of `query` (with geo on, and only when a request asks for it with `geo_nearby` or `geo_radius_km`, which overrides it). It does not turn the search on. At most 20015. See [Geo](/guides/geo#nearby-entities-in-query) |
@@ -54,9 +54,9 @@ Every model invocation (LLM call, embedding request, web search, Jev classificat
 
 When a Jev key is set, `remember` first classifies the text as simple/medium/complex in the number of entities it will yield and logs it with Jev's confidence and the call's latency. See [Remember](/api-reference/remember).
 
-## Eval mode
+## Evals
 
-With `serve --eval` (or `eval = true`) the server also registers `POST /v1/gb/eval/remember` and `POST /v1/gb/eval/query`. They take the same bodies as the regular endpoints, record the call as an [ATIF](https://github.com/laude-institute/harbor) trajectory, store it as pretty-printed JSON in an `atif/` directory next to the SQLite file, and return the full `trajectory` (and its `trajectory_id`) in the response. They are not registered otherwise, and the regular endpoints never generate trajectories. `go run ./evals/knowledge` runs through these endpoints (`-atif <dir>` also keeps the trajectories as files). See [Evals](/evals/evals).
+The user evals are always on: the server serves `/v1/gb/evals` (an eval is a JSON file of the user, in the meta bucket with `evals_s3_bucket` or in a local directory; its runs are executed in the server, with limits on their number and cost, see the `evals_*` settings of `gligabao.toml`). The regular endpoints never generate trajectories; the eval runs record theirs as an [ATIF](https://github.com/laude-institute/harbor) trajectory, stored as JSON in `evals_trajectory_dir` (default: an `atif/` directory next to the SQLite file) or in the ATIF bucket. Details: [User evals](/evals/user-evals) and [Evals](/evals/evals). The `eval` setting and `serve --eval` / `--eval-db` were removed: a config file that still sets `eval` or `eval_db` fails to load. `go run ./internal/evals/knowledge/cmd` runs the knowledge evals of a developer's file on a database of its own (`-user` is required; `-atif <dir>` also keeps the trajectories as files).
 
 ## Admin UI
 

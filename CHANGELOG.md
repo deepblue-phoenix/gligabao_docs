@@ -4,6 +4,14 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.63.0] - 2026-11-22
+
+### Added
+- A new page, User evals (`evals/user-evals`): the evals of each user as JSON files in the meta bucket, their validation, the `/v1/gb/evals` API, runs (heartbeat, cancel, recovery, limits and cost caps), eval datasets and their retention, owners in the database and the admin API (documents gligabao 0.220.0 to 0.225.0, the per-user evals refactor).
+
+### Changed
+- The evals are always on. Evals, Eval experiments, Configuration, API overview, Hooks, Images and Remember manager no longer describe eval mode (`serve --eval`, `eval = true`, `--eval-db`, the public `POST /v1/gb/eval/remember` and `/query`): they describe the private eval mux, the owner of the runs, the eval datasets (`r<eval run id>-<case>`), the `evals_*` settings, the admin Evals block on the main database and the eval runs' own remember manager (documents gligabao 0.225.1).
+
 ## [0.62.0] - 2026-11-21
 
 ### Added
