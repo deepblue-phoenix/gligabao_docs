@@ -4,6 +4,15 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.63.1] - 2026-11-22
+
+### Added
+- User evals: the bookmark routes `POST|GET /v1/gb/evals/bookmarks` and `DELETE /v1/gb/evals/bookmarks/{id}` (documents gligabao 0.227.0).
+
+### Changed
+- Evals: the knowledge evals call `remember.Remember` and `query.Run` in process, through the typed layer shared with the HTTP handlers; the private eval mux is gone. Also Hooks, Remember manager and Chunking (documents gligabao 0.226.0).
+- Eval experiments and User evals: `runner.SyncEval` is now `runner.UpsertEvalDef` (documents gligabao 0.225.2).
+
 ## [0.63.0] - 2026-11-22
 
 ### Added
