@@ -4,6 +4,18 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.64.0] - 2026-11-24
+
+### Added
+- Guide "Per-user models (GCNII*)" (`guides/gcnii`): the `/v1/gb/model/*` routes, training on a dataset (top classes, min edges, class pick, history) and the weights store with `gb_trained_models` and `gb_model_train_jobs` (documents gligabao 0.232.0 to 0.235.0).
+- Guide "GCNII* on a cluster" (`guides/gcnii-cluster`): claim, heartbeat, lost jobs and weights sync across instances.
+- Page "Building gligabao and sargo" (`operations/build`): `ops/build.py` with a section per platform (Linux, macOS, Windows) (documents gligabao 0.231.1).
+- Configuration: `sargo`, `sargo_config`, `sargo_gcnii_dir` and the `model_weights_*` settings. CLI: `gligabao sargo serve` and `sargo config`.
+
+### Changed
+- PyPI page: the packaging is `ops/pypi.py` (portable, runs on Windows too), the wheel hook moved to `ops/pypi_wheel_platform_tag_hook.py`, Linux server wheels embed sargo, and `run_pypi.sh` has a default release.
+- Trained models: the table also holds GCNII* rows (`model_type`, `user_id`, `storage`); sidecar operations answer `409` for them.
+
 ## [0.63.1] - 2026-11-22
 
 ### Added

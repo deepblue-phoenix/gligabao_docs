@@ -27,7 +27,7 @@
           },
           {
             "group": "Guides",
-            "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/web-providers", "guides/geo", "guides/mcp", "guides/cli", "guides/research", "guides/states", "guides/agent-defs", "guides/deep-research-agent", "guides/deep-research-loop", "guides/deep-research-loop-stage-1", "guides/deep-research-loop-stage-2", "guides/deep-research-loop-influences", "guides/monty-code-execution", "guides/subagents", "guides/agent-scheduler", "guides/worker", "guides/vectors", "guides/s3-vectors"]
+            "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/web-providers", "guides/geo", "guides/mcp", "guides/cli", "guides/research", "guides/states", "guides/agent-defs", "guides/deep-research-agent", "guides/deep-research-loop", "guides/deep-research-loop-stage-1", "guides/deep-research-loop-stage-2", "guides/deep-research-loop-influences", "guides/monty-code-execution", "guides/subagents", "guides/agent-scheduler", "guides/worker", "guides/vectors", "guides/s3-vectors", "guides/gcnii", "guides/gcnii-cluster"]
           },
           {
             "group": "Evals",
@@ -78,7 +78,7 @@
           },
           {
             "group": "Operations",
-            "pages": ["operations/inferences", "operations/sidecar", "operations/pypi", "operations/versioning"]
+            "pages": ["operations/inferences", "operations/sidecar", "operations/build", "operations/pypi", "operations/versioning"]
           },
           {
             "group": "Appendix",
