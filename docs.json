@@ -30,6 +30,10 @@
             "pages": ["guides/chunking", "guides/images", "guides/timeseries", "guides/web-search", "guides/web-providers", "guides/geo", "guides/mcp", "guides/cli", "guides/research", "guides/states", "guides/agent-defs", "guides/deep-research-agent", "guides/deep-research-loop", "guides/deep-research-loop-stage-1", "guides/deep-research-loop-stage-2", "guides/deep-research-loop-influences", "guides/monty-code-execution", "guides/subagents", "guides/agent-scheduler", "guides/worker", "guides/vectors", "guides/s3-vectors", "guides/gcnii", "guides/gcnii-cluster"]
           },
           {
+            "group": "Algorithms",
+            "pages": ["algos/overview", "algos/gcnii-link"]
+          },
+          {
             "group": "Evals",
             "pages": ["evals/evals", "evals/user-evals", "evals/experiments", "evals/training"]
           },

@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GCNII* link prediction: technical guide | gligabao algos</title>
+<meta name="description" content="How gligabao predicts links with the per-user GCNII* model: the cosine method, the trained link head, training, testing and the data flow, explained with diagrams.">
+<link rel="stylesheet" href="algos.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0E7C66"/></marker>
+<marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#d98a1c"/></marker>
+</defs></svg>
+
+<header class="top">
+  <b>gligabao algos</b>
+  <nav><a href="index.html">Algorithms</a><a href="gcnii-link.html">GCNII* link prediction</a><a href="/guides/gcnii">GCNII* guide</a><a href="/index">Docs home</a></nav>
+</header>
+
+<div class="wrap">
+<aside class="toc">
+  <a href="#tldr">TL;DR</a>
+  <a href="#problem">1. The problem</a>
+  <a href="#flow">2. End-to-end data flow</a>
+  <a href="#route">3. The route</a>
+  <a href="#score">4. How a score is made</a>
+  <a href="#head">5. The link head</a>
+  <a href="#training">6. Training the head</a>
+  <a href="#modes">7. What is trained: encoder, init</a>
+  <a href="#testing">8. Testing both methods</a>
+  <a href="#weights">9. The weights file</a>
+  <a href="#use">10. How to use it</a>
+  <a href="#choose">11. Choosing and reading results</a>
+  <a href="#limits">12. Limits</a>
+  <a href="#entry">13. Other entry points</a>
+  <a href="#where">14. Where things are</a>
+</aside>
+
+<main>
+<p><span class="pill">algos</span> <span class="pill">GCNII*</span> <span class="pill">link prediction</span></p>
+<h1>Link prediction with the GCNII* model</h1>
+<p class="lead">A new node arrives in a cluster (a graph). How likely is it to be connected to each node that is already there? This page explains, in one place, how gligabao answers that with the per-user GCNII* model running in <code>sargo</code>.</p>
+
+<h2 id="tldr">TL;DR</h2>
+<ul>
+  <li>Link prediction is a pipeline of the per-user GCNII* model, next to <code>infer</code> (class of a graph) and <code>embed</code> (embedding of a graph).</li>
+  <li>The model turns a graph into <b>one embedding per node</b>. A pair of nodes is scored from their embeddings in one of <b>two ways</b>: <code>cosine</code> (free, no extra training) or <code>head</code> (a small trained link head).</li>
+  <li>A user's model can hold both: it keeps classifying and gets a link head. A user without a trained model gets <code>404</code>.</li>
+  <li>Use the <b>order</b> of the scores, not their absolute values.</li>
+</ul>
+
+<h2 id="problem">1. The problem</h2>
+<p>Given a graph and a <b>new node</b> with a type and maybe some links it is already known to have, give each existing node a score for "the new node is connected to it". This is link prediction at the node level.</p>
+<p>The model of a user is a GCNII* graph classifier. Its layers turn the graph into one embedding per node (the output of the last layer, <code>hidden</code> floats per node). The classifier averages them into one graph embedding and applies a classification head. Link prediction reuses the node embeddings, before that averaging.</p>
+
+<figure>
+<svg viewBox="0 0 900 250" role="img" aria-label="One GCNII* encoder feeds three uses: classification, graph embedding and link prediction">
+  <rect class="box" x="20" y="90" width="130" height="70" rx="10"/><text class="c b" x="85" y="120">Graph</text><text class="c s m" x="85" y="138">n, edges, nodes</text>
+  <path class="flow" d="M150 125H210"/>
+  <rect class="accs" x="212" y="70" width="190" height="110" rx="12"/>
+  <text class="c b" x="307" y="100">GCNII* encoder</text><text class="c s m" x="307" y="120">depth layers</text><text class="c s m" x="307" y="138">one embedding per node</text><text class="c s m" x="307" y="156">(hidden floats each)</text>
+  <path class="flow" d="M402 100C440 70 470 50 510 50"/>
+  <path class="flow" d="M402 125H510"/>
+  <path class="flow" d="M402 150C440 180 470 205 510 205"/>
+  <rect class="box" x="512" y="25" width="200" height="50" rx="8"/><text class="b" x="526" y="45">mean pool → class head</text><text class="s m" x="526" y="62">infer: class of the graph</text>
+  <rect class="box" x="512" y="100" width="200" height="50" rx="8"/><text class="b" x="526" y="120">mean pool</text><text class="s m" x="526" y="137">embed: embedding of the graph</text>
+  <rect class="accs" x="512" y="180" width="200" height="50" rx="8"/><text class="b" x="526" y="200">pair scores</text><text class="s m" x="526" y="217">link: this page (cosine or head)</text>
+  <text class="s m" x="730" y="205">uses the node embeddings,</text><text class="s m" x="730" y="220">no pooling</text>
+</svg>
+<figcaption>Fig. 1. The same encoder serves three pipelines. Link prediction taps the node embeddings before the pooling step.</figcaption>
+</figure>
+
+<table>
+<tr><th>Method</th><th>Score of a pair <code>(u, v)</code></th><th>Needs</th><th>Where the knowledge comes from</th></tr>
+<tr><td><code>cosine</code></td><td><code>cos(h<sub>u</sub>, h<sub>v</sub>)</code>, in <code>[0, 1]</code> (the embeddings are ReLU outputs)</td><td>only a trained classification model (no extra training)</td><td>nowhere extra: whatever the classification training made the embeddings mean. A heuristic: nodes the classifier embeds alike score high.</td></tr>
+<tr><td><code>head</code></td><td><code>sigmoid(w · (ĥ<sub>u</sub> ⊙ ĥ<sub>v</sub>) + b)</code>, a probability</td><td>a link training (<a href="#training">section 6</a>)</td><td>a training whose only goal is to predict edges, on held-out edges, so its score is something the model was asked to be right about.</td></tr>
+</table>
+
+<h2 id="flow">2. End-to-end data flow</h2>
+<p>A request enters gligabao, is checked by the Go client, goes to sargo, which loads the user's weights, grows the graph with the new node, runs the model and ranks the scores.</p>
+
+<figure>
+<svg viewBox="0 0 900 300" role="img" aria-label="Request flow from client through gligabao to sargo and the weights store">
+  <rect class="box" x="20" y="80" width="150" height="76" rx="10"/><text class="c b" x="95" y="108">Client</text><text class="c s m" x="95" y="126">POST …/gcnii/link</text><text class="c s m" x="95" y="142">gb-user-id / API key</text>
+  <rect class="box" x="240" y="80" width="170" height="76" rx="10"/><text class="c b" x="325" y="106">gligabao handler</text><text class="c s mono" x="325" y="124">model.Link</text><text class="c s m" x="325" y="142">user from header, not body</text>
+  <rect class="box" x="480" y="80" width="170" height="76" rx="10"/><text class="c b" x="565" y="106">Go client</text><text class="c s mono" x="565" y="124">sargo.Client.GCNIILink</text><text class="c s m" x="565" y="142">checks input first</text>
+  <rect class="accs" x="720" y="80" width="160" height="76" rx="10"/><text class="c b" x="800" y="106">sargo (Rust)</text><text class="c s mono" x="800" y="124">/v1/gcnii/link</text><text class="c s mono" x="800" y="142">gcnii/link.rs</text>
+  <path class="flow" d="M170 118H238"/><path class="flow" d="M410 118H478"/><path class="flow" d="M650 118H718"/>
+  <rect class="soft" x="700" y="215" width="200" height="60" rx="10"/><text class="c b" x="800" y="240">weights store</text><text class="c s mono" x="800" y="258">&lt;models_dir&gt;/&lt;hex user&gt;/model.weights</text>
+  <path class="flow" d="M800 215V158"/><text class="s m" x="808" y="190">load</text>
+  <path class="flow" d="M720 150C640 205 380 205 325 160" style="stroke-dasharray:6 4"/>
+  <text class="s m" x="470" y="212">scores, best first</text>
+  <path class="flow" d="M240 140C200 190 140 190 100 160" style="stroke-dasharray:6 4"/>
+  <rect class="soft" x="20" y="215" width="270" height="62" rx="8"/><text class="b" x="34" y="238">Errors on the way</text><text class="s m" x="34" y="256">400 bad input · 404 no model · 503 no sargo models</text><text class="s m" x="34" y="270">502 sargo did not answer</text>
+</svg>
+<figcaption>Fig. 2. Solid arrows: the request. Dashed: the answer. The user always comes from the request identity, never from a body field.</figcaption>
+</figure>
+
+<h2 id="route">3. The route</h2>
+<p><code>POST /v1/gb/training/gcnii/link</code>, acting as the user of the request (the <code>gb-user-id</code> header or the API key; never a body field). It needs training mode and sargo, like the other GCNII* routes.</p>
+<pre><code>{
+  "graph": {"n": 4, "edges": [[0,1],[1,2],[2,3]], "nodes": [{"name": "a", "type": "person"}, ...]},
+  "node":  {"name": "new", "type": "person", "neighbors": [1]},
+  "top_k": 3
+}</code></pre>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td><code>graph</code></td><td>The cluster: the same graph document as <code>infer</code> and <code>embed</code> (<code>n</code>, undirected <code>edges</code>, optional <code>nodes</code> with <code>name</code> and <code>type</code>).</td></tr>
+<tr><td><code>node.type</code></td><td>The type of the new node (as in the training graphs; an unknown or empty type shares the "unknown type" feature). Optional.</td></tr>
+<tr><td><code>node.name</code></td><td>Metadata only, not a feature. Optional.</td></tr>
+<tr><td><code>node.neighbors</code></td><td>Indices of the nodes the new node is already known to be connected to. Optional (see <a href="#limits">Limits</a>).</td></tr>
+<tr><td><code>top_k</code></td><td>Keep only the best <code>top_k</code> nodes (a whole number &ge; 1). Default: all.</td></tr>
+<tr><td><code>method</code></td><td><code>cosine</code> or <code>head</code>. Default: the head if the user's model has one, else the cosine (<code>400</code> for <code>head</code> on a model without one).</td></tr>
+</table>
+<p>Answer:</p>
+<pre><code>{"method": "head", "node": 4, "nodes": 4, "scores": [{"node": 2, "name": "c", "score": 0.93, "connected": false}, ...]}</code></pre>
+<ul>
+  <li><code>method</code> is the one that scored; <code>node</code> is the index the new node gets in the augmented graph (<code>= nodes</code>).</li>
+  <li><code>scores</code> has one item per node of the graph (or <code>top_k</code>), best first (ties by node index).</li>
+  <li><code>name</code> is only there when the node has one; <code>connected</code> is true for the nodes given in <code>neighbors</code> (those links are known, not predicted).</li>
+</ul>
+<p>Errors: <code>400</code> (no user, a bad graph or node, a neighbor outside <code>0..n-1</code>, <code>top_k</code> &lt; 1), <code>404</code> the user has no trained model, <code>503</code> sargo has no per-user models, <code>502</code> sargo did not answer.</p>
+
+<h2 id="score">4. How a score is made</h2>
+
+<figure>
+<svg viewBox="0 0 900 330" role="img" aria-label="The new node is appended to the graph, the encoder runs, and cosine or head scores each pair">
+  <!-- step 1 -->
+  <text class="b" x="20" y="22">1. append the new node as node n</text>
+  <g>
+    <line class="edge" x1="50" y1="80" x2="120" y2="55"/><line class="edge" x1="120" y1="55" x2="190" y2="95"/><line class="edge" x1="190" y1="95" x2="130" y2="140"/>
+    <line class="known" x1="120" y1="55" x2="250" y2="50"/>
+    <circle class="node" cx="50" cy="80" r="14"/><text class="c s" x="50" y="84">0</text>
+    <circle class="node" cx="120" cy="55" r="14"/><text class="c s" x="120" y="59">1</text>
+    <circle class="node" cx="190" cy="95" r="14"/><text class="c s" x="190" y="99">2</text>
+    <circle class="node" cx="130" cy="140" r="14"/><text class="c s" x="130" y="144">3</text>
+    <circle class="newn" cx="250" cy="50" r="16"/><text class="c s b" x="250" y="54" style="fill:#fff">4</text>
+  </g>
+  <text class="s m" x="20" y="180">dashed blue = edge to each of node.neighbors</text>
+  <text class="s m" x="20" y="196">type of node 4 = node.type</text>
+  <path class="flow" d="M280 100H320"/>
+  <!-- step 2 -->
+  <text class="b" x="330" y="22">2. run the layers</text>
+  <rect class="accs" x="330" y="40" width="150" height="34" rx="6"/><text class="c s" x="405" y="62">GCNII* layer 1</text>
+  <rect class="accs" x="330" y="82" width="150" height="34" rx="6"/><text class="c s" x="405" y="104">GCNII* layer 2</text>
+  <text class="c m" x="405" y="136">⋮ depth layers</text>
+  <rect class="accs" x="330" y="146" width="150" height="34" rx="6"/><text class="c s" x="405" y="168">last GCNII* layer</text>
+  <path class="flow" d="M480 100H520"/>
+  <!-- step 3 -->
+  <text class="b" x="530" y="22">3. node embeddings</text>
+  <g>
+    <rect class="box" x="530" y="40" width="130" height="140" rx="6"/>
+    <text class="s m c" x="595" y="36" style="display:none">h</text>
+    <g class="s">
+      <text x="540" y="60">h₀ ▮▮▯▮▯▮…</text><text x="540" y="80">h₁ ▯▮▮▮▮▯…</text><text x="540" y="100">h₂ ▮▯▮▯▮▮…</text><text x="540" y="120">h₃ ▯▯▮▮▯▮…</text>
+    </g>
+    <text class="s b" x="540" y="145" style="fill:var(--acc)">h₄ ▮▮▯▯▮▯…  (new)</text>
+    <text class="s m" x="540" y="168">hidden floats per row</text>
+  </g>
+  <path class="flow" d="M660 90C700 90 710 60 740 60"/><path class="flow" d="M660 130C700 130 710 170 740 170"/>
+  <rect class="box" x="742" y="30" width="140" height="62" rx="8"/><text class="b" x="752" y="52">cosine</text><text class="s m" x="752" y="70">cos(h₄, hᵢ), 0 if a</text><text class="s m" x="752" y="84">vector is all zeros</text>
+  <rect class="accs" x="742" y="140" width="140" height="62" rx="8"/><text class="b" x="752" y="162">head</text><text class="s m" x="752" y="180">σ(w·(ĥ₄⊙ĥᵢ)+b)</text><text class="s m" x="752" y="194">hidden + 1 weights</text>
+  <!-- bottom -->
+  <path class="flow" d="M812 92V120"/><path class="flow" d="M812 202V240"/>
+  <rect class="soft" x="590" y="244" width="292" height="62" rx="8"/><text class="b" x="602" y="266">sort best first, apply top_k</text><text class="s m" x="602" y="284">ties by node index; connected = true for</text><text class="s m" x="602" y="298">the nodes given as neighbors</text>
+  <rect class="soft" x="20" y="230" width="500" height="76" rx="8"/>
+  <text class="b" x="34" y="252">Why the neighbors matter</text>
+  <text class="s m" x="34" y="272">The new node is part of the graph the model sees, so its neighbors</text>
+  <text class="s m" x="34" y="288">(and through them the rest of the cluster) also change the embeddings</text>
+  <text class="s m" x="34" y="302">of the existing nodes.</text>
+</svg>
+<figcaption>Fig. 3. Both methods share steps 1 to 3. Only the last step (how a pair of embeddings becomes a number) differs.</figcaption>
+</figure>
+
+<ol>
+  <li>The new node is appended to the graph as node <code>n</code>, with its <code>type</code> and an edge to each of <code>neighbors</code>.</li>
+  <li>The trained model runs its layers on this augmented graph and gives one embedding per node: the output of the last GCNII* layer (<code>hidden</code> floats), the vector that is averaged into the graph embedding of <code>embed</code>, before the classification head.</li>
+  <li><code>cosine</code>: the score of the pair (new node, node <code>i</code>) is the cosine similarity of their node embeddings. Layer outputs are ReLU outputs, so the score is in <code>[0, 1]</code> (0 also when one vector is all zeros).<br><code>head</code>: the score is <code>sigmoid(w · (ĥ<sub>u</sub> ⊙ ĥ<sub>v</sub>) + b)</code> on the unit-length embeddings, with <code>w</code> and <code>b</code> the <code>hidden + 1</code> weights of the link head: a probability of the link.</li>
+</ol>
+
+<h2 id="head">5. The link head</h2>
+<p><code>ĥ</code> is <code>h</code> scaled to unit length (a zero embedding stays zero). The head has <code>hidden + 1</code> parameters: a weight <code>w<sub>f</sub></code> per embedding feature and a bias <code>b</code> (<code>GcniiStar::link</code>, a <code>Vec&lt;f32&gt;</code> of <code>hidden</code> weights followed by the bias).</p>
+<pre><code>logit(u, v) = b + Σ_f  w_f · ĥ_u[f] · ĥ_v[f]
+score(u, v) = sigmoid(logit(u, v))</code></pre>
+
+<figure>
+<svg viewBox="0 0 900 310" role="img" aria-label="Element-wise product of two unit embeddings, weighted per feature, summed with a bias and squashed by a sigmoid">
+  <text class="b" x="40" y="22">ĥ_u</text><text class="b" x="40" y="162">ĥ_v</text>
+  <line class="edge" x1="34" y1="120" x2="176" y2="120" style="stroke-width:1"/>
+  <line class="edge" x1="34" y1="260" x2="176" y2="260" style="stroke-width:1"/>
+  <rect x="40" y="57.0" width="16" height="63.0" class="bluef" rx="2"/>
+<rect x="62" y="111.0" width="16" height="9.0" class="bluef" rx="2"/>
+<rect x="84" y="70.5" width="16" height="49.5" class="bluef" rx="2"/>
+<rect x="106" y="120.0" width="16" height="0.0" class="bluef" rx="2"/>
+<rect x="128" y="84.0" width="16" height="36.0" class="bluef" rx="2"/>
+<rect x="150" y="102.0" width="16" height="18.0" class="bluef" rx="2"/>
+  <rect x="40" y="206.0" width="16" height="54.0" class="posf" rx="2"/>
+<rect x="62" y="215.0" width="16" height="45.0" class="posf" rx="2"/>
+<rect x="84" y="215.0" width="16" height="45.0" class="posf" rx="2"/>
+<rect x="106" y="251.0" width="16" height="9.0" class="posf" rx="2"/>
+<rect x="128" y="251.0" width="16" height="9.0" class="posf" rx="2"/>
+<rect x="150" y="233.0" width="16" height="27.0" class="posf" rx="2"/>
+  <text class="s m" x="40" y="136">features f = 1…hidden (6 shown)</text>
+  <path class="flow" d="M185 120C225 120 230 170 262 180"/><path class="flow" d="M185 255C225 255 230 215 262 205"/>
+  <text class="b" x="270" y="58">ĥ_u ⊙ ĥ_v</text>
+  <line class="edge" x1="264" y1="190" x2="408" y2="190" style="stroke-width:1"/>
+  <rect x="270" y="106.8" width="16" height="83.2" class="accf" rx="2"/>
+<rect x="292" y="180.1" width="16" height="9.9" class="accf" rx="2"/>
+<rect x="314" y="135.5" width="16" height="54.5" class="accf" rx="2"/>
+<rect x="336" y="190.0" width="16" height="0.0" class="accf" rx="2"/>
+<rect x="358" y="182.1" width="16" height="7.9" class="accf" rx="2"/>
+<rect x="380" y="178.1" width="16" height="11.9" class="accf" rx="2"/>
+  <text class="s m" x="270" y="215">large only where both</text><text class="s m" x="270" y="229">embeddings are large</text>
+  <path class="flow" d="M412 190H436"/>
+  <text class="b" x="440" y="58">× w (learned)</text>
+  <line class="edge" x1="434" y1="190" x2="578" y2="190" style="stroke-width:1"/>
+  <rect x="440" y="136.0" width="16" height="54.0" class="warnf" rx="2"/>
+<rect x="462" y="190.0" width="16" height="18.0" class="negf" rx="2"/>
+<rect x="484" y="145.0" width="16" height="45.0" class="warnf" rx="2"/>
+<rect x="506" y="181.0" width="16" height="9.0" class="warnf" rx="2"/>
+<rect x="528" y="154.0" width="16" height="36.0" class="warnf" rx="2"/>
+<rect x="550" y="190.0" width="16" height="4.5" class="negf" rx="2"/>
+  <text class="s m" x="440" y="248">re-weights features,</text><text class="s m" x="440" y="262">can be negative</text>
+  <path class="flow" d="M582 190H606"/>
+  <text class="b" x="610" y="58">w_f · ĥ_u[f] · ĥ_v[f]</text>
+  <line class="edge" x1="604" y1="190" x2="748" y2="190" style="stroke-width:1"/>
+  <rect x="610" y="123.5" width="16" height="66.5" class="accf" rx="2"/>
+<rect x="632" y="190.0" width="16" height="2.6" class="negf" rx="2"/>
+<rect x="654" y="153.7" width="16" height="36.3" class="accf" rx="2"/>
+<rect x="676" y="190.0" width="16" height="0.0" class="accf" rx="2"/>
+<rect x="698" y="185.8" width="16" height="4.2" class="accf" rx="2"/>
+<rect x="720" y="190.0" width="16" height="0.8" class="negf" rx="2"/>
+  <path class="flow" d="M752 190H770"/>
+  <circle class="accs" cx="795" cy="190" r="24"/><text class="c b" x="795" y="187">Σ</text><text class="c s" x="795" y="202">+ b</text>
+  <path class="flow" d="M819 190H838"/>
+  <rect class="accs" x="840" y="170" width="50" height="40" rx="8"/><text class="c b" x="865" y="195">σ</text>
+  <path class="flow" d="M865 212V252"/>
+  <text class="c b" x="865" y="272">p</text><text class="c s m" x="865" y="288">link prob.</text>
+</svg>
+<figcaption>Fig. 4. The head is a <i>diagonal bilinear form</i> on unit-length embeddings: per-feature weights over the element-wise product, plus a bias, through a sigmoid.</figcaption>
+</figure>
+
+<ul>
+  <li><b>Symmetric:</b> <code>score(u, v) = score(v, u)</code>, the links are undirected.</li>
+  <li><b>Unit-length embeddings:</b> the features of the embeddings of a deep GCNII* are small and vary in scale between graphs; normalizing makes the head's input comparable and the training stable. With <code>w<sub>f</sub> = 1</code> and <code>b = 0</code> the logit is exactly the cosine.</li>
+  <li><b>Initial state:</b> a new head starts as a <i>scaled cosine scorer</i>: every <code>w<sub>f</sub></code> is <code>6</code> plus a little noise (std 0.1) and <code>b = -3</code> (<code>LINK_INIT_SCALE</code> in <code>model.rs</code>). At step 0 the head ranks nodes like the <code>cosine</code> method (and spreads the probabilities over the sigmoid's useful range); training has to improve on that, and a head that does not learn is as good as the cosine, not worse.</li>
+  <li><b>A diagonal bilinear form on purpose:</b> few parameters, symmetric by construction, cheap exact gradients. It can re-weight embedding features (which ones matter for "these two are linked") but cannot model interactions between different features.</li>
+</ul>
+
+<h2 id="training">6. Training the head</h2>
+<p>The head is trained on the same kind of data as the classification (graphs <code>{n, edges, nodes?}</code>), next to it. A new head starts as a scaled cosine scorer, so it starts where the <code>cosine</code> method is and has to improve on it. One training example is <b>one graph</b>, rebuilt every epoch (<code>make_example</code> in <code>link_train.rs</code>).</p>
+
+<figure>
+<svg viewBox="0 0 900 270" role="img" aria-label="A graph is split into kept edges, held-out positive pairs and sampled negative pairs">
+  <defs></defs>
+  <!-- panel 1 -->
+  <text class="b" x="20" y="20">1. full graph</text>
+  <g transform="translate(20,30)">
+    <line class="edge" x1="60" y1="20" x2="140" y2="20"/><line class="edge" x1="140" y1="20" x2="170" y2="95"/><line class="edge" x1="170" y1="95" x2="100" y2="150"/><line class="edge" x1="100" y1="150" x2="30" y2="95"/><line class="edge" x1="30" y1="95" x2="60" y2="20"/><line class="edge" x1="60" y1="20" x2="170" y2="95"/><line class="edge" x1="140" y1="20" x2="100" y2="150"/>
+    <circle class="node" cx="60" cy="20" r="13"/><text class="c s" x="60" y="24">0</text>
+    <circle class="node" cx="140" cy="20" r="13"/><text class="c s" x="140" y="24">1</text>
+    <circle class="node" cx="170" cy="95" r="13"/><text class="c s" x="170" y="99">2</text>
+    <circle class="node" cx="100" cy="150" r="13"/><text class="c s" x="100" y="154">3</text>
+    <circle class="node" cx="30" cy="95" r="13"/><text class="c s" x="30" y="99">4</text>
+  </g>
+  <text class="s m" x="20" y="225">7 edges</text>
+  <path class="flow" d="M235 110H280"/>
+  <!-- panel 2 -->
+  <text class="b" x="290" y="20">2. hold out, hide</text>
+  <g transform="translate(290,30)">
+    <line class="edge" x1="60" y1="20" x2="140" y2="20"/><line class="edge" x1="140" y1="20" x2="170" y2="95"/><line class="edge" x1="170" y1="95" x2="100" y2="150"/><line class="edge" x1="100" y1="150" x2="30" y2="95"/><line class="edge" x1="30" y1="95" x2="60" y2="20"/><line class="edge" x1="140" y1="20" x2="100" y2="150"/>
+    <line class="pos" x1="60" y1="20" x2="170" y2="95"/>
+    <circle class="node" cx="60" cy="20" r="13"/><text class="c s" x="60" y="24">0</text>
+    <circle class="node" cx="140" cy="20" r="13"/><text class="c s" x="140" y="24">1</text>
+    <circle class="node" cx="170" cy="95" r="13"/><text class="c s" x="170" y="99">2</text>
+    <circle class="node" cx="100" cy="150" r="13"/><text class="c s" x="100" y="154">3</text>
+    <circle class="node" cx="30" cy="95" r="13"/><text class="c s" x="30" y="99">4</text>
+  </g>
+  <text class="s" x="290" y="225" style="fill:var(--pos)">green dashed: held out = positive pair</text>
+  <text class="s m" x="290" y="241">grey: what the encoder sees</text>
+  <path class="flow" d="M505 110H550"/>
+  <!-- panel 3 -->
+  <text class="b" x="560" y="20">3. add negatives</text>
+  <g transform="translate(560,30)">
+    <line class="edge" x1="60" y1="20" x2="140" y2="20"/><line class="edge" x1="140" y1="20" x2="170" y2="95"/><line class="edge" x1="170" y1="95" x2="100" y2="150"/><line class="edge" x1="100" y1="150" x2="30" y2="95"/><line class="edge" x1="30" y1="95" x2="60" y2="20"/><line class="edge" x1="140" y1="20" x2="100" y2="150"/>
+    <line class="pos" x1="60" y1="20" x2="170" y2="95"/>
+    <line class="neg" x1="140" y1="20" x2="30" y2="95"/>
+    <circle class="node" cx="60" cy="20" r="13"/><text class="c s" x="60" y="24">0</text>
+    <circle class="node" cx="140" cy="20" r="13"/><text class="c s" x="140" y="24">1</text>
+    <circle class="node" cx="170" cy="95" r="13"/><text class="c s" x="170" y="99">2</text>
+    <circle class="node" cx="100" cy="150" r="13"/><text class="c s" x="100" y="154">3</text>
+    <circle class="node" cx="30" cy="95" r="13"/><text class="c s" x="30" y="99">4</text>
+  </g>
+  <text class="s" x="560" y="225" style="fill:var(--neg)">red dotted: random non-edge = negative pair</text>
+  <text class="s m" x="560" y="241">as many as the positives, not an edge of the full graph</text>
+  <rect class="soft" x="790" y="60" width="100" height="120" rx="8"/><text class="c b" x="840" y="85">pairs</text><text class="c s" x="840" y="108" style="fill:var(--pos)">+ (0,2)</text><text class="c s" x="840" y="126" style="fill:var(--neg)">− (1,4)</text><text class="c s m" x="840" y="150">scored from</text><text class="c s m" x="840" y="164">embeddings</text>
+  <path class="flow" d="M735 110H788"/>
+</svg>
+<figcaption>Fig. 5. One example, here with <code>holdout = 0.2</code> of 7 edges (rounded, so 1 edge). The encoder never sees the held-out edge, it has to predict links it cannot see.</figcaption>
+</figure>
+
+<h3>The steps of one example</h3>
+<ol>
+  <li><b>Split the edges.</b> A <code>holdout</code> fraction (default 0.2, rounded, at least 1 and at least 1 left) of the edges, picked at random, are taken out. They are the <b>positive pairs</b>.</li>
+  <li><b>Hide them.</b> The adjacency of the graph is rebuilt <b>without</b> those edges.</li>
+  <li><b>Negative pairs.</b> As many random node pairs that are <b>not edges of the full graph</b> (neither kept nor held-out) as there are positives, distinct, <code>a &lt; b</code>. For a nearly complete graph there may be fewer; a graph with no non-edge, with fewer than 2 edges or fewer than 3 nodes is skipped for that epoch.</li>
+  <li><b>Forward.</b> The encoder runs on the hidden-edge graph; the head scores every pair from the node embeddings.</li>
+  <li><b>Loss.</b> The mean binary cross-entropy (with logits) of the pairs; the "pair acc" of the log is the share of pairs on the right side of 0.5.</li>
+  <li><b>Backward.</b> The gradient of the head is exact. The gradient on the embeddings goes back through the unit-length normalization (<code>dh = (dĥ − ĥ (ĥ·dĥ)) / |h|</code>) and, if the encoder is trained, through the GCNII* layers (<code>backward_encoder</code> in <code>model.rs</code>, the same code as the classification backward after its pooling step). The finite-difference test of <code>link_train.rs</code> checks the head and every encoder tensor.</li>
+  <li><b>Step.</b> Plain SGD with learning rate <code>lr</code>, one step per <code>batch</code> graphs (the gradients of the batch are summed, each already divided by the batch size).</li>
+</ol>
+
+<figure>
+<svg viewBox="0 0 900 190" role="img" aria-label="Training loop: make example, forward, loss, backward, SGD step">
+  <rect class="box" x="10" y="50" width="130" height="64" rx="8"/><text class="c b" x="75" y="76">make_example</text><text class="c s m" x="75" y="94">split, hide, negatives</text>
+  <rect class="accs" x="175" y="50" width="130" height="64" rx="8"/><text class="c b" x="240" y="76">encoder</text><text class="c s m" x="240" y="94">node embeddings</text>
+  <rect class="accs" x="340" y="50" width="130" height="64" rx="8"/><text class="c b" x="405" y="76">link head</text><text class="c s m" x="405" y="94">pair logits</text>
+  <rect class="box" x="505" y="50" width="130" height="64" rx="8"/><text class="c b" x="570" y="76">BCE loss</text><text class="c s m" x="570" y="94">mean over pairs</text>
+  <rect class="box" x="670" y="50" width="130" height="64" rx="8"/><text class="c b" x="735" y="76">SGD step</text><text class="c s m" x="735" y="94">every batch graphs</text>
+  <path class="flow" d="M140 82H173"/><path class="flow" d="M305 82H338"/><path class="flow" d="M470 82H503"/><path class="flow" d="M635 82H668"/>
+  <path class="back" d="M570 50C570 10 405 10 405 48"/>
+  <path class="back" d="M405 50C405 20 240 20 240 48" style="display:none"/>
+  <path class="back" d="M540 118C540 165 240 165 240 118"/>
+  <text class="s" x="440" y="12" style="fill:var(--warn)">exact head gradient</text>
+  <text class="s" x="300" y="180" style="fill:var(--warn)">through unit-norm, then GCNII* layers (only if encoder is trained)</text>
+  <path class="flow" d="M735 114V150H830V82H802" style="display:none"/>
+  <text class="s m" x="820" y="70">repeat for all</text><text class="s m" x="820" y="86">graphs, every</text><text class="s m" x="820" y="102">epoch</text>
+</svg>
+<figcaption>Fig. 6. The loop of one graph. Orange dashed arrows are the backward pass.</figcaption>
+</figure>
+
+<p>The randomness is per graph and epoch (<code>seed</code>, the epoch and the graph's index), so an example does not depend on the order the graphs are visited in; the same <code>seed</code> repeats the training.</p>
+
+<h2 id="modes">7. What is trained: <code>encoder</code> and <code>init</code></h2>
+
+<figure>
+<svg viewBox="0 0 900 340" role="img" aria-label="frozen trains only the head, train also trains the encoder and optionally the classification head">
+  <text class="b" x="20" y="24">encoder = frozen</text><text class="s m" x="150" y="24">(default when starting from the user's model)</text>
+  <rect class="soft grey" x="20" y="40" width="190" height="70" rx="10"/><text class="c b" x="115" y="68">encoder</text><text class="c s m" x="115" y="88">locked, from init</text>
+  <g transform="translate(180,48)"><rect x="0" y="6" width="20" height="14" rx="3" fill="var(--muted)"/><path class="lock" d="M4 6V0Q10 -6 16 0V6"/></g>
+  <rect class="accs" x="330" y="40" width="190" height="70" rx="10"/><text class="c b" x="425" y="68">link head</text><text class="c s m" x="425" y="88">trained: hidden + 1 numbers</text>
+  <rect class="soft grey" x="330" y="125" width="190" height="45" rx="10"/><text class="c s" x="425" y="152">classification head: untouched</text>
+  <path class="flow" d="M210 75H328"/><path class="flow" d="M210 95C260 95 280 145 328 147" style="opacity:.4"/>
+  <rect class="soft" x="610" y="40" width="270" height="130" rx="8"/>
+  <text class="b" x="624" y="64">Result</text><text class="s m" x="624" y="84">classifies exactly as before (bit for bit)</text><text class="s m" x="624" y="102">and has a link head</text><text class="s m" x="624" y="126">cheap and safe; the head can only use</text><text class="s m" x="624" y="142">what the classification encoder knows</text>
+  <line class="edge" x1="20" y1="190" x2="880" y2="190" style="stroke-width:1"/>
+  <text class="b" x="20" y="218">encoder = train</text><text class="s m" x="150" y="218">(the encoder is trained by the link loss)</text>
+  <rect class="accs" x="20" y="234" width="190" height="70" rx="10"/><text class="c b" x="115" y="262">encoder</text><text class="c s m" x="115" y="282">trained</text>
+  <rect class="accs" x="330" y="234" width="190" height="42" rx="10"/><text class="c b" x="425" y="260">link head</text>
+  <rect class="box" x="330" y="286" width="190" height="42" rx="10" style="stroke-dasharray:5 4"/><text class="c s" x="425" y="305">classification head</text><text class="c s m" x="425" y="319">only if class_weight &gt; 0</text>
+  <path class="flow" d="M210 255H328"/><path class="flow" d="M210 285C260 285 280 307 328 307" style="stroke-dasharray:5 4"/>
+  <path class="back" d="M330 255C290 215 150 215 130 232" style="display:none"/>
+  <rect class="soft" x="610" y="234" width="270" height="94" rx="8"/>
+  <text class="s" x="624" y="256"><tspan class="b">class_weight = 0:</tspan> class head stale,</text><text class="s m" x="624" y="272">a link-only model</text>
+  <text class="s" x="624" y="296"><tspan class="b">class_weight &gt; 0:</tspan> both heads train</text><text class="s m" x="624" y="312">at once (multi-task), measure the trade-off</text>
+</svg>
+<figcaption>Fig. 7. The two encoder modes.</figcaption>
+</figure>
+
+<table>
+<tr><th><code>encoder</code></th><th>Trained</th><th>The classification part</th></tr>
+<tr><td><code>frozen</code></td><td>only the head (<code>hidden + 1</code> numbers)</td><td>untouched, bit for bit; needs a model to start from (<code>init</code>)</td></tr>
+<tr><td><code>train</code></td><td>the head and the whole encoder, by the link loss</td><td>with <code>class_weight</code> = 0 left as it was; with <code>class_weight</code> &gt; 0 the classification loss of each graph (cross-entropy of its label, on the full graph) times <code>class_weight</code> is added to the encoder's gradient, so <b>both heads train at once</b></td></tr>
+</table>
+<ul>
+  <li><code>frozen</code> adds link prediction to a model people already use, without changing a single class probability.</li>
+  <li><code>train</code> lets the encoder organize the embeddings for links. Alone (<code>class_weight</code> 0) the classification head becomes stale and meaningless; the model is a link model. With <code>class_weight</code> &gt; 0 it is a multi-task model: how well each task does depends on the weight and has to be measured (see <a href="#testing">section 8</a>).</li>
+  <li><b>Not allowed</b> (an error, <code>400</code> over HTTP): <code>frozen</code> without <code>init</code>; <code>class_weight</code> &gt; 0 with <code>frozen</code>; <code>class_weight</code> &gt; 0 with a graph whose label is outside the classes of the starting model.</li>
+</ul>
+
+<h3>Where it starts: <code>init</code></h3>
+<ul>
+  <li><code>init</code> <b>true</b>: start from the user's current model (its encoder, its classification head and its classes; a head it already has is trained on). The default when the encoder is <code>frozen</code>. A user without a model gets <code>404</code>.</li>
+  <li><code>init</code> <b>false</b>: a new model: <code>hidden</code>/<code>depth</code> (default 16/16) and the node-type vocabulary from the training graphs, a new classification head with one output per class found, a new link head. Needs <code>encoder</code> <code>train</code>. This is the default for <code>train</code>; set <code>"init": true</code> to fine-tune the current model.</li>
+</ul>
+
+<h3>Data</h3>
+<p>The same graph documents as the classification: <code>{n, edges, nodes?: [{name?, type?}]}</code>. A <code>class</code> is <b>not needed</b> for a link training unless <code>class_weight</code> &gt; 0 (sargo fills in a placeholder class <code>_</code> otherwise; the model's classes are then those of the starting model, or <code>["_"]</code>). Through the jobs API a <b>dataset</b> is built as for the classification (graphs and LLM classes, at least 2 classes), so a dataset training still needs the classes; graphs sent in the body do not. Only graphs with at least 2 edges (and 3 nodes) give link examples; small graphs are skipped; a dataset with none is an error.</p>
+
+<h3>Settings</h3>
+<table>
+<tr><th>Setting</th><th>Default</th><th>Note</th></tr>
+<tr><td><code>epochs</code></td><td>30</td><td></td></tr>
+<tr><td><code>lr</code></td><td>0.01</td><td>SGD learning rate</td></tr>
+<tr><td><code>batch</code></td><td>4 graphs</td><td>one step per batch</td></tr>
+<tr><td><code>hidden</code>, <code>depth</code></td><td>16, 16</td><td>only for a new model</td></tr>
+<tr><td><code>seed</code></td><td>random</td><td>the same seed repeats the training</td></tr>
+<tr><td><code>holdout</code></td><td>0.2</td><td>in <code>(0, 1)</code></td></tr>
+<tr><td><code>encoder</code></td><td><code>frozen</code> when starting from the user's model</td><td><code>frozen</code> or <code>train</code></td></tr>
+<tr><td><code>class_weight</code></td><td>0</td><td></td></tr>
+<tr><td><code>init</code></td><td>true for <code>frozen</code>, false otherwise</td><td></td></tr>
+</table>
+<p>A job on <code>POST /v1/gb/training/jobs</code> with <code>"model_type": "gcnii"</code> takes <code>"task": "link"</code> and these settings. Stopping a job (<code>POST /v1/gb/training/jobs/{id}/stop</code>) works as for the classification: it ends at the next batch, the user's previous model is kept. The mean link loss of each epoch is reported like the classification loss (<code>epoch_losses</code>, <code>epoch_loss</code>). The job reports <code>link_loss</code>, and when done <code>link_eval</code> (and <code>val_link_eval</code> if it had validation graphs): the <a href="#testing">test below</a> on the training and validation graphs, for both methods. They are also in the run meta (<code>GET /v1/gb/training/jobs/{id}/meta</code>) and the <code>params</code> of the model row. A later <b>classification</b> training replaces the model and so drops its link head.</p>
+
+<h2 id="testing">8. Testing both methods</h2>
+<p><code>POST /v1/gb/training/gcnii/link/eval</code> with <code>{"graphs": [{n, edges, nodes?}, ...], "nodes"?, "reveal"?, "seed"?}</code> tests both methods with the user's model on the same cases. The test (<code>link_eval.rs</code>) imitates how the route is used: a node arrives, some links are known, find the others.</p>
+
+<figure>
+<svg viewBox="0 0 900 340" role="img" aria-label="A node is removed from a graph, part of its neighbours are revealed and the rest are targets to rank">
+  <text class="b" x="20" y="22">1-2. take a node out, split its neighbours</text>
+  <g transform="translate(10,30)">
+    <line class="edge" x1="60" y1="40" x2="95" y2="130"/><line class="edge" x1="95" y1="130" x2="60" y2="215"/><line class="edge" x1="260" y1="40" x2="260" y2="215"/>
+    <line class="known" x1="160" y1="125" x2="60" y2="40"/><line class="known" x1="160" y1="125" x2="95" y2="130"/>
+    <line class="pos" x1="160" y1="125" x2="260" y2="40"/><line class="pos" x1="160" y1="125" x2="260" y2="215"/>
+    <circle class="node" cx="60" cy="40" r="14" style="stroke:var(--blue)"/><text class="c s" x="60" y="44">A</text>
+    <circle class="node" cx="95" cy="130" r="14" style="stroke:var(--blue)"/><text class="c s" x="95" y="134">B</text>
+    <circle class="node" cx="260" cy="40" r="14" style="stroke:var(--pos)"/><text class="c s" x="260" y="44">C</text>
+    <circle class="node" cx="260" cy="215" r="14" style="stroke:var(--pos)"/><text class="c s" x="260" y="219">D</text>
+    <circle class="node" cx="60" cy="215" r="14"/><text class="c s" x="60" y="219">E</text>
+    <circle class="node" cx="160" cy="215" r="14"/><text class="c s" x="160" y="219">F</text>
+    <circle class="newn" cx="160" cy="125" r="17"/><text class="c s b" x="160" y="129" style="fill:#fff">X</text>
+  </g>
+  <text class="s" x="20" y="285" style="fill:var(--blue)">blue: revealed (reveal fraction) → given as neighbors</text>
+  <text class="s" x="20" y="302" style="fill:var(--pos)">green: targets, the model has to rank them first</text>
+  <text class="s m" x="20" y="319">E, F: negatives (not neighbours of X)</text>
+  <path class="flow" d="M320 150H395"/><text class="s m" x="325" y="140">3. score X</text>
+  <text class="b" x="410" y="22">3-4. rank the candidates (all nodes except the known neighbours)</text>
+  <g transform="translate(410,40)">
+    <rect class="soft" x="0" y="0" width="470" height="26" rx="4"/><text class="s b" x="10" y="17">rank</text><text class="s b" x="60" y="17">node</text><text class="s b" x="120" y="17">score</text><text class="s b" x="360" y="17">role</text>
+    <text class="s m" x="10" y="48">–</text><text class="s m" x="60" y="48" style="text-decoration:line-through">A</text><text class="s m" x="120" y="48">excluded: known neighbour</text>
+    <text class="s m" x="10" y="72">–</text><text class="s m" x="60" y="72" style="text-decoration:line-through">B</text><text class="s m" x="120" y="72">excluded: known neighbour</text>
+    <text class="s" x="10" y="100">1</text><text class="s" x="60" y="100">C</text><rect class="posf" x="120" y="88" width="210" height="14" rx="3"/><text class="s" x="360" y="100" style="fill:var(--pos)">target</text>
+    <text class="s" x="10" y="124">2</text><text class="s" x="60" y="124">E</text><rect class="negf" x="120" y="112" width="160" height="14" rx="3" style="opacity:.6"/><text class="s m" x="360" y="124">negative</text>
+    <text class="s" x="10" y="148">3</text><text class="s" x="60" y="148">F</text><rect class="negf" x="120" y="136" width="120" height="14" rx="3" style="opacity:.6"/><text class="s m" x="360" y="148">negative</text>
+    <text class="s" x="10" y="172">4</text><text class="s" x="60" y="172">D</text><rect class="posf" x="120" y="160" width="70" height="14" rx="3"/><text class="s" x="360" y="172" style="fill:var(--pos)">target</text>
+  </g>
+  <rect class="soft" x="410" y="230" width="470" height="92" rx="8"/>
+  <text class="s" x="424" y="252"><tspan class="b">auc</tspan> = P(target outranks a negative): C beats E, F; D beats none → 2/4 = 0.5</text>
+  <text class="s" x="424" y="272"><tspan class="b">mrr</tspan> = 1 / rank of the best target = 1/1</text>
+  <text class="s" x="424" y="292"><tspan class="b">hits@10</tspan> = a target is in the first 10 → yes</text>
+  <text class="s m" x="424" y="310">averaged over all cases, both methods on the same cases</text>
+</svg>
+<figcaption>Fig. 8. One test case. The node X is removed, added back as a new node with the revealed neighbours, and the method has to rank the hidden neighbours above the rest.</figcaption>
+</figure>
+
+<ol>
+  <li><b>Hold out nodes.</b> From each graph, up to <code>nodes</code> (default 5) nodes with at least 2 neighbours (graphs of at least 4 nodes) are picked at random (<code>seed</code>, default 1; the same seed gives the same cases).</li>
+  <li><b>Split its neighbours.</b> The node is removed with its edges (the other nodes are renumbered). A <code>reveal</code> fraction of its neighbours (default 0.5, rounded, at least 1 and at least 1 left) are given as the <code>neighbors</code> of the new node; the rest are the <b>targets</b>.</li>
+  <li><b>Score.</b> The node is added back as a new node (its type, the known neighbours) and the method scores it against every node of the graph.</li>
+  <li><b>Rank.</b> The candidates are all nodes <b>except the known neighbours</b>; the targets are the positives, the other candidates the negatives.</li>
+</ol>
+<p>Answer:</p>
+<pre><code>{"cases": 200, "cosine": {"cases": 200, "auc": 0.87, "mrr": 0.61, "hits_at_10": 0.98}, "head": {"cases": 200, "auc": 0.88, "mrr": 0.62, "hits_at_10": 0.99}}</code></pre>
+<table>
+<tr><th>Metric</th><th>Meaning</th></tr>
+<tr><td><code>auc</code></td><td>the probability that a random target scores above a random non-neighbour (ties count 0.5). 0.5 is random, 1 is perfect</td></tr>
+<tr><td><code>mrr</code></td><td>the mean of <code>1 / rank</code> of the best-ranked target; ties are ranked <b>against</b> the target (pessimistic)</td></tr>
+<tr><td><code>hits_at_10</code></td><td>the fraction of cases with a target among the 10 best candidates</td></tr>
+</table>
+<p>Metrics are averaged over the cases (a case without a positive or a negative candidate is skipped). Both methods are scored on <b>exactly the same cases</b>, so the numbers are comparable (<code>cases</code> is the same). <code>head</code> is <code>null</code> for a model without a link head. A graph set where no node qualifies is an error.</p>
+<div class="warn"><b>Remember</b>
+<ul>
+<li>The test is <b>in-sample</b> for the graphs a model was trained on (the training saw the edges of those graphs, in a different split). A link job reports <code>link_eval</code> on its training graphs and, if it had validation graphs, <code>val_link_eval</code>: <b>use validation graphs</b> (graphs the training never saw) to compare fairly. Test on graphs the model was not trained on, or the numbers are in-sample.</li>
+<li>With few cases the numbers are noisy: raise <code>nodes</code> or give more graphs, and compare on the same <code>seed</code>.</li>
+<li>Training is on held-out <b>edges</b>, the test is on held-out <b>nodes</b>. The difference is on purpose: it measures what the pipeline is used for.</li>
+</ul></div>
+
+<h2 id="weights">9. The weights file</h2>
+
+<figure>
+<svg viewBox="0 0 900 230" role="img" aria-label="GCN* and GCNL file layouts">
+  <text class="b" x="20" y="24">GCN*  (classification training, also deepblue-compatible)</text>
+  <rect class="box" x="20" y="36" width="90" height="46"/><text class="c s b" x="65" y="64">magic GCN*</text>
+  <rect class="box" x="110" y="36" width="110" height="46"/><text class="c s" x="165" y="64">header</text>
+  <rect class="box" x="220" y="36" width="130" height="46"/><text class="c s" x="285" y="64">type vocabulary</text>
+  <rect class="soft" x="350" y="36" width="410" height="46"/><text class="c s" x="555" y="64">all the parameters of the model (layers, classification head)</text>
+  <text class="b" x="20" y="132">GCNL  (link training)</text>
+  <rect class="accs" x="20" y="144" width="90" height="46"/><text class="c s b" x="65" y="172">magic GCNL</text>
+  <rect class="box" x="110" y="144" width="110" height="46"/><text class="c s" x="165" y="172">header</text>
+  <rect class="box" x="220" y="144" width="130" height="46"/><text class="c s" x="285" y="172">type vocabulary</text>
+  <rect class="soft" x="350" y="144" width="410" height="46"/><text class="c s" x="555" y="172">all the parameters of the model (same layout)</text>
+  <rect class="accf" x="760" y="144" width="120" height="46"/><text class="c s b" x="820" y="172" style="fill:#fff">hidden+1 floats</text>
+  <text class="s m" x="760" y="208">the link head, appended</text>
+</svg>
+<figcaption>Fig. 9. A model with a link head is a <code>GCNL</code> file; without one it stays the exact <code>GCN*</code> file.</figcaption>
+</figure>
+
+<p>A model with a link head is a <code>GCNL</code> file: the same layout as the deepblue-compatible <code>GCN*</code> file (header, type vocabulary, all the parameters of the model) with the <code>hidden + 1</code> floats of the head appended, and <code>GCNL</code> as the magic. A model without a head is still the exact <code>GCN*</code> file. <code>weights::load</code> reads both; the head is <code>None</code> for a <code>GCN*</code> file. So:</p>
+<ul>
+  <li>the classification training writes <code>GCN*</code> (and so <b>drops</b> a link head: it makes a new model);</li>
+  <li>a link training writes <code>GCNL</code> to the same place (<code>&lt;models_dir&gt;/&lt;hex user&gt;/model.weights</code>), and the weights store and the cluster sync (see the <a href="/guides/gcnii">GCNII* guide</a>) copy it as any other file; a <code>GCNL</code> file is not loadable by the deepblue engine.</li>
+</ul>
+
+<h2 id="use">10. How to use it</h2>
+
+<figure>
+<svg viewBox="0 0 900 160" role="img" aria-label="Workflow: train classifier, train link head, test, predict">
+  <rect class="box" x="10" y="40" width="190" height="80" rx="10"/><text class="c b" x="105" y="68">1. classifier</text><text class="c s m" x="105" y="88">POST /training/jobs</text><text class="c s mono" x="105" y="104">model_type: gcnii</text>
+  <rect class="accs" x="250" y="40" width="190" height="80" rx="10"/><text class="c b" x="345" y="68">2. link head</text><text class="c s m" x="345" y="88">same endpoint</text><text class="c s mono" x="345" y="104">task: link</text>
+  <rect class="box" x="490" y="40" width="190" height="80" rx="10"/><text class="c b" x="585" y="68">3. test</text><text class="c s mono" x="585" y="88">…/gcnii/link/eval</text><text class="c s m" x="585" y="104">on unseen graphs</text>
+  <rect class="box" x="730" y="40" width="160" height="80" rx="10"/><text class="c b" x="810" y="68">4. predict</text><text class="c s mono" x="810" y="88">…/gcnii/link</text><text class="c s m" x="810" y="104">head or cosine</text>
+  <path class="flow" d="M200 80H248"/><path class="flow" d="M440 80H488"/><path class="flow" d="M680 80H728"/>
+  <path class="back" d="M585 122C585 150 345 150 345 124"/><text class="s" x="400" y="156" style="fill:var(--warn)">not better? change settings, retrain</text>
+</svg>
+<figcaption>Fig. 10. The HTTP workflow.</figcaption>
+</figure>
+
+<h3>Over HTTP (gligabao)</h3>
+<ol>
+  <li>Train the classification as usual (<code>POST /v1/gb/training/jobs</code>, <code>"model_type": "gcnii"</code>).</li>
+  <li>Train the head: the same endpoint with <code>"task": "link"</code>, e.g. <code>{"model_type": "gcnii", "task": "link", "graphs": [...], "validation": [...], "epochs": 40, "lr": 0.05}</code> (frozen, from the user's model) or with <code>"encoder": "train", "class_weight": 1</code> (both heads; <code>init</code> is false so a new model; set <code>"init": true</code> to fine-tune the current one). The job record has <code>task</code>, and when it is done <code>link_loss</code>, <code>link_eval</code> and <code>val_link_eval</code>. A running link job shows up in <code>GET /v1/gb/training/jobs?model_type=gcnii</code> as any job.</li>
+  <li>Test: <code>POST /v1/gb/training/gcnii/link/eval</code> with graphs the model has not seen.</li>
+  <li>Use: <code>POST /v1/gb/training/gcnii/link</code> (<code>method</code> <code>head</code>; the default once the model has a head, <code>cosine</code> to compare).</li>
+</ol>
+
+<h3>On the command line (no server)</h3>
+<pre><code># 1. a classifier (as before)
+sargo gcnii train DS --save cls.w --epochs 15 --hidden 16 --depth 4
+# 2. the cosine method, measured on the classifier alone
+sargo gcnii eval-link DS --load cls.w
+# 3. a frozen head on top of it (the model keeps classifying)
+sargo gcnii train-link DS --save frozen.w --init cls.w --epochs 40 --lr 0.05
+# 4. both heads at once, from scratch
+sargo gcnii train-link DS --save joint.w --encoder train --class-weight 1 --epochs 40 --lr 0.02 --hidden 16 --depth 4
+# 5. compare: every eval prints both methods on the same cases
+sargo gcnii eval-link DS --load frozen.w
+sargo gcnii eval-link DS --load joint.w
+sargo gcnii eval DS --load joint.w          # and what the classification kept
+# 6. predict
+sargo gcnii link cluster.json --load frozen.w --type person --neighbors 1,4 --top-k 5 --method head</code></pre>
+
+<h2 id="choose">11. Choosing, and reading the results</h2>
+
+<figure>
+<svg viewBox="0 0 900 300" role="img" aria-label="Decision flow for choosing between cosine, frozen head and trained encoder">
+  <rect class="accs" x="20" y="20" width="170" height="52" rx="26"/><text class="c b" x="105" y="42">start: cosine</text><text class="c s m" x="105" y="58">free, measure it</text>
+  <path class="flow" d="M190 46H238"/>
+  <rect class="box" x="240" y="20" width="190" height="52" rx="8"/><text class="c b" x="335" y="42">train a frozen head</text><text class="c s m" x="335" y="58">measure again</text>
+  <path class="flow" d="M430 46H478"/>
+  <polygon points="590,10 700,46 590,82 480,46" class="soft"/><text class="c s b" x="590" y="43">head clearly</text><text class="c s b" x="590" y="57">better (valid.)?</text>
+  <path class="flow" d="M700 46H740"/><text class="s" x="710" y="38" style="fill:var(--pos)">yes</text>
+  <rect class="box" x="742" y="20" width="140" height="52" rx="8"/><text class="c b" x="812" y="50">keep the head</text>
+  <path class="flow" d="M590 82V120"/><text class="s" x="598" y="108" style="fill:var(--neg)">no</text>
+  <rect class="box" x="490" y="122" width="200" height="52" rx="8"/><text class="c b" x="590" y="144">keep the cosine</text><text class="c s m" x="590" y="160">or try encoder: train</text>
+  <line class="edge" x1="20" y1="205" x2="880" y2="205" style="stroke-width:1"/>
+  <text class="b" x="20" y="232">which encoder mode?</text>
+  <rect class="soft" x="20" y="244" width="270" height="46" rx="8"/><text class="s" x="32" y="263"><tspan class="b">frozen</tspan>: the classification must not change</text><text class="s m" x="32" y="279">same class probabilities</text>
+  <rect class="soft" x="315" y="244" width="270" height="46" rx="8"/><text class="s" x="327" y="263"><tspan class="b">train + class_weight</tspan>: both tasks matter</text><text class="s m" x="327" y="279">check the classification did not get worse</text>
+  <rect class="soft" x="610" y="244" width="270" height="46" rx="8"/><text class="s" x="622" y="263"><tspan class="b">train, weight 0</tspan>: only for links</text><text class="s m" x="622" y="279">classification head becomes stale</text>
+</svg>
+<figcaption>Fig. 11. A practical way to choose.</figcaption>
+</figure>
+
+<ul>
+  <li><b>Start with <code>cosine</code></b> (free) and measure it. Train a frozen head and measure again: if <code>head</code> is not clearly better on validation graphs, keep the cosine.</li>
+  <li><b><code>frozen</code></b> when the classification must not change; <b><code>train</code> with <code>class_weight</code></b> when both tasks matter and you can afford to check that the classification did not get worse (<code>eval</code> on the classification, and the class metrics of the job); <b><code>train</code> with 0</b> for a model only meant for links.</li>
+  <li>The head pays off when the structure says more about links than "looks alike": when types or the embeddings already separate the communities (a toy graph made of typed clusters) both methods are about equal. In a first run on synthetic community graphs, AUC was 0.872 for the cosine, 0.873 for the frozen head and 0.881 for both heads trained from scratch; expect differences to show on harder, real data.</li>
+  <li>A new node <b>without known neighbours</b> is scored from its type alone, whichever method: give it the links you know.</li>
+  <li>The score of the head is a probability in the sense of the training distribution (balanced positives and negatives); it is not calibrated to how rare real links are, so use it to <b>rank</b>, and pick a threshold on data you have.</li>
+  <li>The model is deep and smooths embeddings; very different graph sizes between training and use change the picture. Test on data like the use.</li>
+</ul>
+
+<h2 id="limits">12. Limits</h2>
+<ul>
+  <li>The <code>cosine</code> method uses a model trained to <b>classify graphs</b>, not to predict links. A high score means "this node looks like that one, in the context of this graph" (same kind of type and neighborhood); it is a ranking, not a calibrated probability of an edge.</li>
+  <li>A new node <b>without <code>neighbors</code></b> has only its <code>type</code> (and degree 0) as features, so it mostly ranks the nodes of the same type first. Give it the links it is already known to have for a better signal.</li>
+  <li>The model has many layers, which smooths the embeddings: scores of a cluster can be close together; use the order, not the absolute values.</li>
+  <li>The <code>head</code> is trained on held-out edges, not on held-out nodes: a new node differs a bit from that (it has only the links you know), so test with the node-level test of <a href="#testing">section 8</a>. On graphs where the node types already tell the communities (the usual case in a toy), both methods can be about equal; the head pays off when the structure says more than the cosine can.</li>
+</ul>
+
+<h2 id="entry">13. Other entry points</h2>
+<ul>
+  <li><b>sargo:</b> <code>POST /v1/gcnii/link</code> and <code>POST /v1/gcnii/link/eval</code> take the same bodies plus an optional <code>user_id</code> (without it the global <code>[gcnii] weights</code> model is used). <code>POST /v1/gcnii/train</code> takes <code>"task": "link"</code> with <code>holdout</code>, <code>encoder</code>, <code>class_weight</code>, <code>init</code>; without a <code>class</code> on the graphs unless <code>class_weight</code> &gt; 0.</li>
+  <li><b>Command line</b> (<code>sargo gcnii ...</code>, JSON on stdout):
+    <ul>
+      <li><code>link GRAPH.json|- --load w.bin [--type T] [--name N] [--neighbors 0,3] [--top-k K] [--method cosine|head]</code></li>
+      <li><code>train-link DIR --save out.w [--init cls.w] [--encoder frozen|train] [--class-weight X] [--holdout X] [--epochs N] [--lr X] [--batch N] [--seed N] [--hidden N] [--depth N]</code></li>
+      <li><code>eval-link DIR --load w.bin [--nodes N] [--reveal X] [--seed N]</code></li>
+    </ul>
+    To compare the approaches: <code>train</code> a classifier, <code>eval-link</code> it (the <code>cosine</code> numbers), <code>train-link --init</code> it (frozen head) and <code>train-link --encoder train [--class-weight 1]</code> (from scratch), then <code>eval-link</code> each.</li>
+  <li><b>Weights file:</b> <code>GCNL</code> for a model with a link head, <code>GCN*</code> otherwise (<a href="#weights">section 9</a>).</li>
+  <li><b>Go client:</b> <code>sargo.Client.GCNIILink</code>, <code>GCNIILinkEval</code> and the <code>Task</code>/<code>Holdout</code>/<code>Encoder</code>/<code>ClassWeight</code>/<code>Init</code> fields of <code>GCNIITrainRequest</code> (<code>internal/sargo/gcnii.go</code>) check the input before sending. The handlers are <code>model.Link</code> and <code>model.LinkEval</code> (<code>internal/api/model</code>); the training goes through <code>internal/training/gcnii</code> like the classification.</li>
+</ul>
+
+<h2 id="where">14. Where things are</h2>
+<table>
+<tr><th>What</th><th>Where</th></tr>
+<tr><td>the head, the unit embeddings, the pair logit</td><td><code>model.rs</code> (<code>link</code>, <code>with_new_link_head</code>, <code>unit_columns</code>, <code>pair_logit</code>, <code>backward_encoder</code>)</td></tr>
+<tr><td>examples, loss, gradients, the training</td><td><code>link_train.rs</code> (<code>make_example</code>, <code>link_grads</code>, <code>train_link</code>)</td></tr>
+<tr><td>scoring a new node, the two methods</td><td><code>link.rs</code> (<code>Method</code>, <code>grow</code>, <code>score_all</code>, <code>predict</code>)</td></tr>
+<tr><td>the test</td><td><code>link_eval.rs</code> (<code>cases</code>, <code>case_metrics</code>, <code>evaluate</code>, <code>compare</code>)</td></tr>
+<tr><td>the file format</td><td><code>weights.rs</code> (<code>GCN*</code> / <code>GCNL</code>)</td></tr>
+<tr><td>per-user jobs, the settings of a body</td><td><code>users.rs</code> (<code>start_link</code>, <code>link_options_from_value</code>, <code>run_link_training</code>)</td></tr>
+<tr><td>HTTP of sargo, CLI</td><td><code>router.rs</code> (<code>/v1/gcnii/link</code>, <code>/link/eval</code>, <code>/train</code> with <code>task</code>), <code>cli.rs</code> (<code>link</code>, <code>train-link</code>, <code>eval-link</code>)</td></tr>
+<tr><td>Go: client, handlers, jobs</td><td><code>internal/sargo/gcnii.go</code>, <code>internal/api/model</code>, <code>internal/training/gcnii</code>, <code>internal/modeltrain</code></td></tr>
+</table>
+<p>All Rust files are under <code>rust/sargo/src/gcnii/</code>. Related: <a href="/guides/gcnii">GCNII* guide</a> (model, training, per-user storage), <a href="/guides/gcnii-cluster">GCNII* on a cluster</a>.</p>
+</main>
+</div>
+</body>
+</html>

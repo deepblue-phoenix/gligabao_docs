@@ -4,6 +4,12 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.65.0] - 2026-11-26
+
+### Added
+- A new section, Algorithms (`algos/`), in the Documentation tab: an overview page and standalone HTML guides (`algos/index.html`, shared `algos/algos.css`).
+- Guide "GCNII* link prediction" (`algos/gcnii-link`, source `algos/gcnii-link.html`): one technical page that explains `gcnii-link.md` and `gcnii-link-head.md` of gligabao (the `cosine` and `head` methods, the route, the link head, training, the node-level test, the `GCNL` weights file, entry points) with SVG diagrams of the data flow and of the key parts.
+
 ## [0.64.0] - 2026-11-24
 
 ### Added

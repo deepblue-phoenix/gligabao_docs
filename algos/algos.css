@@ -1,0 +1,64 @@
+:root{
+  --bg:#fbfcfb;--fg:#17211e;--muted:#5b6b66;--card:#ffffff;--line:#c9d6d1;--soft:#eef5f2;
+  --acc:#0E7C66;--acc2:#2EC4A0;--pos:#1a9e5c;--neg:#d6453d;--warn:#d98a1c;--blue:#2f6fdb;--code:#f0f4f2;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0f1513;--fg:#e4ece9;--muted:#93a39d;--card:#17201d;--line:#34443f;--soft:#1b2723;
+  --acc:#2EC4A0;--acc2:#0E7C66;--pos:#3fd18a;--neg:#ff6b61;--warn:#f0a840;--blue:#6fa0ff;--code:#1d2824;}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--acc)}
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:.6rem 1.2rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+header.top b{color:var(--acc)}
+header.top nav a{margin-right:1rem;text-decoration:none;font-size:.92rem}
+.wrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:2rem;max-width:1180px;margin:0 auto;padding:1.5rem 1.2rem 4rem}
+aside.toc{position:sticky;top:3.6rem;align-self:start;max-height:calc(100vh - 4.5rem);overflow:auto;font-size:.88rem}
+aside.toc a{display:block;padding:.18rem 0;text-decoration:none;color:var(--muted)}
+aside.toc a:hover{color:var(--acc)}
+@media (max-width:900px){.wrap{grid-template-columns:1fr}aside.toc{display:none}}
+main{min-width:0}
+h1{font-size:2rem;line-height:1.2;margin:.2rem 0 .6rem}
+h2{margin:2.6rem 0 .6rem;padding-top:.6rem;border-top:1px solid var(--line);font-size:1.5rem}
+h3{margin:1.6rem 0 .4rem;font-size:1.15rem}
+p.lead{font-size:1.1rem;color:var(--muted)}
+code{background:var(--code);padding:.08rem .35rem;border-radius:4px;font-size:.88em}
+pre{background:var(--code);padding:.9rem 1rem;border-radius:8px;overflow:auto;font-size:.85rem;line-height:1.5;border:1px solid var(--line)}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.93rem;display:block;overflow:auto}
+th,td{border:1px solid var(--line);padding:.45rem .7rem;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+figure{margin:1.4rem 0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.8rem}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-size:.87rem;color:var(--muted);margin-top:.5rem}
+.note,.warn{border-left:4px solid var(--acc);background:var(--soft);padding:.6rem .9rem;border-radius:0 8px 8px 0;margin:1rem 0}
+.warn{border-color:var(--warn)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin:1.2rem 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem}
+.card h3{margin-top:0}
+.pill{display:inline-block;font-size:.75rem;padding:.05rem .5rem;border-radius:99px;background:var(--soft);border:1px solid var(--line);color:var(--muted)}
+/* svg theming */
+svg text{fill:var(--fg);font-family:inherit;font-size:13px}
+svg .s{font-size:11px}
+svg .m{fill:var(--muted)}
+svg .b{font-weight:700}
+svg .c{text-anchor:middle}
+svg .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+svg .box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+svg .soft{fill:var(--soft);stroke:var(--line);stroke-width:1.2}
+svg .accf{fill:var(--acc);stroke:none;opacity:.9}
+svg .accb{fill:none;stroke:var(--acc);stroke-width:2}
+svg .accs{fill:var(--soft);stroke:var(--acc);stroke-width:2}
+svg .posf{fill:var(--pos)}svg .negf{fill:var(--neg)}svg .bluef{fill:var(--blue)}svg .warnf{fill:var(--warn)}
+svg .node{fill:var(--card);stroke:var(--fg);stroke-width:1.6}
+svg .newn{fill:var(--acc);stroke:var(--fg);stroke-width:1.6}
+svg .edge{stroke:var(--muted);stroke-width:2;fill:none}
+svg .known{stroke:var(--blue);stroke-width:2.5;fill:none;stroke-dasharray:6 4}
+svg .pos{stroke:var(--pos);stroke-width:3;fill:none;stroke-dasharray:7 4}
+svg .neg{stroke:var(--neg);stroke-width:2.5;fill:none;stroke-dasharray:2 5;stroke-linecap:round}
+svg .ask{stroke:var(--warn);stroke-width:2;fill:none;stroke-dasharray:2 5;stroke-linecap:round}
+svg .flow{stroke:var(--acc);stroke-width:2.2;fill:none;marker-end:url(#ah)}
+svg .back{stroke:var(--warn);stroke-width:2;fill:none;stroke-dasharray:5 4;marker-end:url(#ahw)}
+svg .grey{opacity:.45}
+svg .lock{fill:none;stroke:var(--muted);stroke-width:2}
