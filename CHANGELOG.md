@@ -4,6 +4,18 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.67.0] - 2026-11-26
+
+Documents gligabao 0.251.0 to 0.255.0 (code extraction and the graph extractor hook).
+
+### Added
+- Hooks page: the **graph extractor** hook (`ServeOptions.GraphExtractor`, content types `text`, `code`, `image`).
+- `remember` page: the `content_type` and `filename` fields (code is parsed into a graph with no LLM: Python, TypeScript, JavaScript, CSS, Go).
+- Build page: the `esbuild` command, the generated parsers and the `tsjs_css` build tag.
+
+### Changed
+- Images guide: the description stage runs the text pipeline, and calls the graph extractor hook with content type `image`.
+
 ## [0.66.0] - 2026-11-26
 
 Documents gligabao 0.236.0 to 0.250.0.
