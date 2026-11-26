@@ -3,9 +3,11 @@ title: "Training"
 description: "How gligabao fine-tunes Gemma-4 on a cloud GPU: the pieces, how a job flows from the training API to the provider, and where each part is documented."
 ---
 
-`internal/sys/sidecar/`, `internal/api/training/`, `admin_ui/src/training.ts`, `internal/db/relational/`, `sidecar/ai_train/`
+`internal/sys/ml_sidecar/`, `internal/api/training/`, `admin_ui/src/training.ts`, `internal/db/relational/`, `ml_sidecar/ai_train/`
 
-gligabao can fine-tune Gemma-4 (4B, 12B and 31B, with LoRA adapters) on a cloud GPU and serve the result. The training code is Python and runs on Modal, behind the [Python sidecar](/operations/sidecar): the Go server only ever talks to the sidecar, and the sidecar proxies every request to Modal. The Go server starts jobs through the sidecar, follows their progress (status and loss) and keeps a record of every job it started. The [admin UI](/getting-started/configuration#admin-ui) has a **training** view to run jobs, pick their dataset and watch them.
+gligabao can fine-tune Gemma-4 (4B, 12B and 31B, with LoRA adapters) on a cloud GPU and serve the result. The training code is Python and runs on Modal, behind the [ML sidecar](/operations/ml-sidecar): the Go server only ever talks to the ML sidecar, and the ML sidecar proxies every request to Modal. The Go server starts jobs through the ML sidecar, follows their progress (status and loss) and keeps a record of every job it started. The [admin UI](/getting-started/configuration#admin-ui) has a **training** view to run jobs, pick their dataset and watch them.
+
+Every `/v1/gb/training/...` route works on the data of the user of the request (an API key with the `Auth` hook, or the `gb-user-id` header) and the routes of the GCNII\* models are under `/v1/gb/training/gcnii/`; see [Training jobs](/training/jobs#starting-a-job). In training mode the server starts a local ML sidecar itself and checks at startup that the credentials training needs are accessible ([ML sidecar](/operations/ml-sidecar#the-server-starts-it)).
 
 ## The pieces
 
@@ -13,21 +15,21 @@ gligabao can fine-tune Gemma-4 (4B, 12B and 31B, with LoRA adapters) on a cloud 
 | --- | --- | --- |
 | Admin UI, training view | `admin_ui/src/training.ts` | The datasets (list, inspect, upload), a `Run` button (model size, dataset, steps), the list of jobs, the list of trained models (with a form to run inference on one, and an **Eval** button that has an LLM judge the model against its training dataset: [Evals of trained models](/evals/training)), and for the selected job a live event feed and a loss graph. |
 | Training endpoints | Go, `internal/api/training/` | `POST` / `GET /v1/gb/training/jobs` (start a job and record it; list jobs), `GET /v1/gb/training/models` and `POST /v1/gb/training/models/{id}/infer` (the trained models, and running a prompt through one), `POST` / `GET /v1/gb/training/datasets` (upload and list the training datasets, found in the training datasets directory by their `dataset.toml` manifests: the Go server alone manages them) and the SSE feed `GET /v1/gb/training/events`. Served whether or not the admin UI is on. |
-| Training monitor | Go, `internal/api/training/monitor.go` | Follows the sidecar's progress stream of every job, stores the events, keeps the job's row current and forwards the events to the admin UI. |
-| Go client | Go, `internal/sys/sidecar/` | The only code that knows the sidecar's HTTP API (the Go server never calls Modal itself): `StartTrainingJob`, `StreamTrainingJobEvents`. |
-| `gb_training_job_runs`, `gb_training_job_events`, `gb_training_datasets`, `gb_trained_models` | Database (SQLite and PostgreSQL) | One row per job started, kept current as it runs; one row per event the sidecar reported for it; one row per uploaded training dataset (the file is kept in the training dataset directory); one row per trained model, the weights a completed job saved. |
-| Sidecar | Python, `sidecar/` (`routes.py`, `backends/`) | The REST API the Go client calls: `/training/*`, `/infer/*`, `/evals/*`; it has no dataset endpoints. It does no training work: it forwards each request to its backend (`modal`) and streams the answer back. |
-| Modal web API | Python, `sidecar/ai_train/api/` | The web API of the deployed Modal app, which the sidecar's `modal` backend forwards to. Only the sidecar calls it. |
-| Training code | Python, `sidecar/ai_train/ai_train_core/` | Runs inside the GPU container: storing and syncing datasets (internal only), the 4B, 12B and 31B pipelines, progress, inference. |
-| Provider | Python, `sidecar/ai_train/providers/` | Everything cloud-specific (Modal today) behind one interface. |
+| Training monitor | Go, `internal/training/monitor.go` | Follows the ML sidecar's progress stream of every job, stores the events, keeps the job's row current and forwards the events to the SSE feed and to the `Hooks.TrainingEvents` callbacks. The same monitor serves the GCNII* jobs on sargo (a `training.Backend` says where a kind of job runs: `MLSidecarBackend` or `internal/training/gcnii`). |
+| Go client | Go, `internal/sys/ml_sidecar/` | The only code that knows the ML sidecar's HTTP API (the Go server never calls Modal itself): `StartTrainingJob`, `StreamTrainingJobEvents`. |
+| `gb_training_job_runs`, `gb_training_job_runs_meta`, `gb_training_job_events`, `gb_training_datasets`, `gb_trained_models` | Database (SQLite and PostgreSQL) | One row per job started, kept current as it runs; one row per event the ML sidecar reported for it; one row per uploaded training dataset (the file is kept in the training dataset directory); one row per trained model, the weights a completed job saved. |
+| ML sidecar | Python, `ml_sidecar/` (`routes.py`, `backends/`) | The REST API the Go client calls: `/training/*`, `/infer/*`, `/evals/*`; it has no dataset endpoints. It does no training work: it forwards each request to its backend (`modal`) and streams the answer back. |
+| Modal web API | Python, `ml_sidecar/ai_train/api/` | The web API of the deployed Modal app, which the ML sidecar's `modal` backend forwards to. Only the ML sidecar calls it. |
+| Training code | Python, `ml_sidecar/ai_train/ai_train_core/` | Runs inside the GPU container: storing and syncing datasets (internal only), the 4B, 12B and 31B pipelines, progress, inference. |
+| Provider | Python, `ml_sidecar/ai_train/providers/` | Everything cloud-specific (Modal today) behind one interface. |
 
 ## How a job starts
 
 ```
 client ── POST /v1/gb/training/jobs ──► Go server (internal/api/training)
-                                                           │  sidecar.Client.StartTrainingJob
+                                                           │  ml_sidecar.Client.StartTrainingJob
                                                            ▼
-                                        sidecar REST API: POST /training/job_start
+                                        ML sidecar REST API: POST /training/job_start
                                                            │  proxied by the modal backend
                                                            ▼
                                         Modal web API: POST /training/job_start
@@ -42,7 +44,7 @@ Go server ◄──────────────────────�
 ```
 
 1. The endpoint validates the request and, for a `dataset`, loads that dataset's file from the Go server's own storage (an unknown dataset is a `400`). It calls the Go client.
-2. The client calls `POST /training/job_start` on the sidecar, the only address the Go server knows. The request carries the dataset file as `dataset_content`. The sidecar forwards the request unchanged to the Modal web API, which stores the dataset on its data volume (internally, there is no dataset endpoint) and spawns the job on the compute provider **without waiting for it** and reports back with a `TrainingJob`; the sidecar returns that answer as it is. A request the Modal web API rejects (for example a bad `dataset_content`) is a `400` that reaches the Go server unchanged. If Modal cannot be reached, the sidecar answers `502`.
+2. The client calls `POST /training/job_start` on the ML sidecar, the only address the Go server knows. The request carries the dataset file as `dataset_content`. The ML sidecar forwards the request unchanged to the Modal web API, which stores the dataset on its data volume (internally, there is no dataset endpoint) and spawns the job on the compute provider **without waiting for it** and reports back with a `TrainingJob`; the ML sidecar returns that answer as it is. A request the Modal web API rejects (for example a bad `dataset_content`) is a `400` that reaches the Go server unchanged. If Modal cannot be reached, the ML sidecar answers `502`.
 3. The server stores the `TrainingJob` as a new row of `gb_training_job_runs`, answers with that row, and hands the job to the training monitor.
 
 Details: [Training jobs](/training/jobs).
@@ -55,7 +57,7 @@ training container ── appends events ──► event log of the job   (a Mod
 Modal web API ◄── GET /training/job_events?from=N (reads the log) ─┘
         │  SSE
         ▼
-sidecar (proxies the stream, as it arrives)
+ML sidecar (proxies the stream, as it arrives)
         │  SSE
         ▼
 Go server (training monitor): stores each event, updates the job's row
@@ -64,42 +66,41 @@ Go server (training monitor): stores each event, updates the job's row
 clients, admin UI: job list, event feed, loss graph
 ```
 
-The events are status changes (`running`, `training`, `completed` with the final loss, `failed` with the error) and one progress event per trainer log (step, loss, learning rate, epoch). Because the Go server stores them, the loss graph of a finished job is still there after the sidecar's log is gone, and the Go server resumes following unfinished jobs after a restart. The log keeps every event of a job, so a Go server or sidecar that was offline while the job trained gets the events it missed when it reconnects (`from=<last id + 1>`). See [Training progress](/training/jobs#training-progress).
+The events are status changes (`running`, `training`, `completed` with the final loss, `failed` with the error) and one progress event per trainer log (step, loss, learning rate, epoch). Because the Go server stores them, the loss graph of a finished job is still there after the ML sidecar's log is gone, and the Go server resumes following unfinished jobs after a restart. The log keeps every event of a job, so a Go server or ML sidecar that was offline while the job trained gets the events it missed when it reconnects (`from=<last id + 1>`). See [Training progress](/training/jobs#training-progress).
 
 ## A typical workflow
 
-1. Set up the [sidecar](/operations/sidecar) with your Modal tokens once, and deploy the Modal app: with the **Deploy** button of the admin UI's training view ([Modal app lifecycle](/training/modal)) or `modal deploy app.py` ([Running on Modal](/training/running)).
-2. [Add](/training/datasets#adding-a-dataset) one or more datasets: a subdirectory of the training datasets directory (`build/datasets_training/`) with a `dataset.toml` manifest and the JSONL file (or upload a file through `POST /v1/gb/training/datasets` or the admin UI's training view). The server finds them by their manifests, and sends one to the sidecar with the job that uses it. A job needs a dataset; there is no default one. Format and manifest: [Training datasets](/training/datasets).
+1. Set up the [ML sidecar](/operations/ml-sidecar) with your Modal tokens once, and deploy the Modal app: with the **Deploy** button of the admin UI's training view ([Modal app lifecycle](/training/modal)) or `modal deploy app.py` ([Running on Modal](/training/running)).
+2. [Add](/training/datasets#adding-a-dataset) one or more datasets: a subdirectory of the training datasets directory (`build/datasets_training/`) with a `dataset.toml` manifest and the JSONL file (or upload a file through `POST /v1/gb/training/datasets` or the admin UI's training view). The server finds them by their manifests, and sends one to the ML sidecar with the job that uses it. A job needs a dataset; there is no default one. Format and manifest: [Training datasets](/training/datasets).
 3. Pick a size ([Model sizes](/training/models)) and a dataset; start with `4b` and 100 to 200 steps to check that the loss falls.
-4. Start the job: the `Run` button of the admin UI, the [endpoint](/training/jobs#starting-a-job) it calls, or `modal run app.py --action train` directly (that one bypasses the sidecar and is not recorded by the server).
-5. Watch it in the **training** view of the admin UI (feed and loss graph), or through [`GET /v1/gb/training/events`](/training/jobs#training-progress); the sidecar's own views are `GET /training/job_events` and `GET /training/job_progress` ([sidecar API](/training/sidecar-api)).
+4. Start the job: the `Run` button of the admin UI, the [endpoint](/training/jobs#starting-a-job) it calls, or `modal run app.py --action train` directly (that one bypasses the ML sidecar and is not recorded by the server).
+5. Watch it in the **training** view of the admin UI (feed and loss graph), or through [`GET /v1/gb/training/events`](/training/jobs#training-progress); the ML sidecar's own views are `GET /training/job_events` and `GET /training/job_progress` ([ML sidecar API](/training/ml-sidecar-api)).
 6. Run inference on the trained model: pick it in the admin UI's **Trained models** table, or `POST /v1/gb/training/models/{id}/infer` ([Trained models](/training/trained-models)). Every completed job is a new model, so you can train again with other data, steps or size and keep all of them.
 
 ## Configuration
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `sidecar_url` (env `SIDECAR_URL`) | `http://127.0.0.1:8787` | Base URL of the sidecar's REST API, which the training endpoints call. It is the only service address the Go server is given: there is no Modal setting on the Go side. A key in the file overrides the environment. |
+| `ml_sidecar_url` (env `ML_SIDECAR_URL`) | `http://127.0.0.1:8787` | Base URL of the ML sidecar's REST API, which the training endpoints call. It is the only service address the Go server is given: there is no Modal setting on the Go side. A key in the file overrides the environment. |
 
-The address is used as given. On the docker compose network that is `http://sidecar:8787` (see [With docker compose](/operations/sidecar#with-docker-compose)). For a job to start, the sidecar at that URL must itself reach the Modal web API: it needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, and the Modal app deployed (from the admin UI, see [Modal app lifecycle](/training/modal), or with `modal deploy app.py`; or `SIDECAR_MODAL_WEB_URL` set, for `modal serve`); see [the sidecar's configuration](/operations/sidecar#configuration). The Go server pings the sidecar's `/health` once on startup; if that fails it runs without a sidecar and the training endpoints answer `503`. The sidecar has no authentication, so keep it on a private network.
+The address is used as given. On the docker compose network that is `http://ml-sidecar:8787` (see [With docker compose](/operations/ml-sidecar#with-docker-compose)). For a job to start, the ML sidecar at that URL must itself reach the Modal web API: it needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, and the Modal app deployed (from the admin UI, see [Modal app lifecycle](/training/modal), or with `modal deploy app.py`; or `ML_SIDECAR_MODAL_WEB_URL` set, for `modal serve`); see [the ML sidecar's configuration](/operations/ml-sidecar#configuration). The Go server pings the ML sidecar's `/health` once on startup; if that fails it runs without an ML sidecar and the training endpoints answer `503`. The ML sidecar has no authentication, so keep it on a private network.
 
-The settings of the sidecar itself (`SIDECAR_BACKEND`, `SIDECAR_APP_NAME`, the Modal tokens) are in [Python sidecar](/operations/sidecar#configuration); the settings of the Modal app (`SIDECAR_PROVIDER`, `SIDECAR_GPU`, the volumes, ...) are in [Running on Modal](/training/running#configuration).
+The settings of the ML sidecar itself (`ML_SIDECAR_BACKEND`, `ML_SIDECAR_APP_NAME`, the Modal tokens) are in [ML sidecar](/operations/ml-sidecar#configuration); the settings of the Modal app (`ML_SIDECAR_PROVIDER`, `ML_SIDECAR_GPU`, the volumes, ...) are in [Running on Modal](/training/running#configuration).
 
 ## In this section
 
 - [Training jobs](/training/jobs): the `TrainingJob` struct, the training endpoints, the `gb_training_job_runs` table and the Go client.
-- [Training datasets](/training/datasets): the dataset format, the training datasets directory and its manifests, listing and uploading on the Go server, how a dataset reaches the sidecar, `TrainingDataset`.
+- [Training datasets](/training/datasets): the dataset format, the training datasets directory and its manifests, listing and uploading on the Go server, how a dataset reaches the ML sidecar, `TrainingDataset`.
 - [Model sizes](/training/models): 4B, 12B and 31B, backends, GPUs, cost, LoRA settings, troubleshooting.
 - [Trained models](/training/trained-models): where a job's weights are saved, the `gb_trained_models` table, how inference picks a model, and how to add an inference endpoint.
 - [Model deploying](/training/deploying): the deployer hook that receives a trained model's weights as local files, how they are fetched and verified, and the `gb_trained_model_deployments` record.
 - [Evals of trained models](/evals/training): the **Eval** button: a model is asked its training dataset's questions, one per prompt, and an LLM judges the answers in batches.
-- [Sidecar training API](/training/sidecar-api): the REST endpoints the sidecar serves and the Modal web API behind them.
-- [Running on Modal](/training/running): the code layout, the `modal` commands, the sidecar's configuration, tests.
-- [Modal app lifecycle](/training/modal): deploy, watch (live log), cancel and stop the Modal app and list its volumes from the sidecar and the admin UI, without the CLI.
+- [ML sidecar training API](/training/ml-sidecar-api): the REST endpoints the ML sidecar serves and the Modal web API behind them.
+- [Running on Modal](/training/running): the code layout, the `modal` commands, the ML sidecar's configuration, tests.
+- [Modal app lifecycle](/training/modal): deploy, watch (live log), cancel and stop the Modal app and list its volumes from the ML sidecar and the admin UI, without the CLI.
 - [Providers and extending](/training/providers): how the provider abstraction works, adding a provider, a model size or a function.
 
 ## Not tracked yet
 
 - A job's end is only known through the events the training container writes. If the container dies without writing `failed` (killed, out of memory, an image that fails to build), nothing reports it: the Go server marks the job `failed` 3 hours after it started.
-- Jobs started directly with `modal run` do not go through the sidecar and are not in the database; only jobs started through the training endpoint (or the UI) are.
-- There is no endpoint to cancel a job.
+- Jobs started directly with `modal run` do not go through the ML sidecar and are not in the database; only jobs started through the training endpoint (or the UI) are.

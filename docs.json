@@ -50,7 +50,7 @@
               },
               {
                 "group": "Internals",
-                "pages": ["training/sidecar-api", "training/providers"]
+                "pages": ["training/ml-sidecar-api", "training/providers"]
               }
             ]
           }
@@ -82,7 +82,7 @@
           },
           {
             "group": "Operations",
-            "pages": ["operations/inferences", "operations/sidecar", "operations/build", "operations/pypi", "operations/versioning"]
+            "pages": ["operations/inferences", "operations/ml-sidecar", "operations/build", "operations/pypi", "operations/versioning"]
           },
           {
             "group": "Appendix",
@@ -106,7 +106,9 @@
     { "source": "/operations/experiments", "destination": "/evals/experiments" },
     { "source": "/training/evals", "destination": "/evals/training" },
     { "source": "/training/exporting", "destination": "/training/deploying" },
-    { "source": "/api-reference/recall", "destination": "/api-reference/query" }
+    { "source": "/api-reference/recall", "destination": "/api-reference/query" },
+    { "source": "/operations/sidecar", "destination": "/operations/ml-sidecar" },
+    { "source": "/training/sidecar-api", "destination": "/training/ml-sidecar-api" }
   ],
   "navbar": {
     "primary": {

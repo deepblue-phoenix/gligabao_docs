@@ -3,20 +3,20 @@ title: "Trained models"
 description: "Where a job's weights are saved, how a completed job becomes a gb_trained_models row, how inference picks a model, and how to add an inference endpoint."
 ---
 
-`sidecar/ai_train/ai_train_core/trained_model.py`, `model_train.py`, `inference.py`, `sidecar/ai_train/api/api.py`, `sidecar/ai_train/app.py`, `internal/api/training/models.go`, `internal/api/training/monitor.go`, `internal/sys/sidecar/inference.go`, `internal/db/relational/`
+`ml_sidecar/ai_train/ai_train_core/trained_model.py`, `model_train.py`, `inference.py`, `ml_sidecar/ai_train/api/api.py`, `ml_sidecar/ai_train/app.py`, `internal/api/training/models.go`, `internal/training/monitor.go`, `internal/sys/ml_sidecar/inference.go`, `internal/db/relational/`
 
-A trained model is a set of weights: for the LoRA fine-tuning the sidecar does, the few files of an adapter (`adapter_config.json`, `adapter_model.safetensors`, the tokenizer files). Each job that **completes** makes a **new** trained model, one row of the `gb_trained_models` table, so a user can train many models of the same type with other data, steps or size, and every one stays available to run inference on. A cancelled or failed job saves nothing.
+A trained model is a set of weights: for the LoRA fine-tuning the ML sidecar does, the few files of an adapter (`adapter_config.json`, `adapter_model.safetensors`, the tokenizer files). Each job that **completes** makes a **new** trained model, one row of the `gb_trained_models` table, so a user can train many models of the same type with other data, steps or size, and every one stays available to run inference on. A cancelled or failed job saves nothing.
 
-The table also holds the GCNII* models of sargo (`model_type = "gcnii"`, a `user_id`, `storage = "s3"`), whose weights are in the weights bucket and not on the sidecar's volume; see [Per-user models](/guides/gcnii#weights-and-the-trained-models-table). Everything below is about the LoRA models (`model_type = "lora"`, `storage = "modal_volume"`); the sidecar-only operations (inference, evals, audits, deployment) answer `409` for the others.
+The table also holds the GCNII* models of sargo (`model_type = "gcnii"`, a `user_id`, `storage = "s3"`), whose weights are in the weights bucket and not on the ML sidecar's volume; see [Per-user models](/guides/gcnii#weights-and-the-trained-models-table). Everything below is about the LoRA models (`model_type = "lora"`, `storage = "modal_volume"`); the ML-sidecar-only operations (inference, evals, audits, deployment) answer `409` for the others.
 
 ## Where the weights are saved
 
-The weights live on the provider's **models volume** (Modal: `SIDECAR_VOL_MODELS`, default `gligabao-train-models`, mounted at `/models` in the containers). Each job gets a directory of its own, named after the job's ID, and nothing ever writes into another job's directory:
+The weights live on the provider's **models volume** (Modal: `ML_SIDECAR_VOL_MODELS`, default `gligabao-train-models`, mounted at `/models` in the containers). Each job gets a directory of its own, named after the job's ID, and nothing ever writes into another job's directory:
 
 ```
 /models                              models volume
   trained/
-    <job_id>/                        one directory per completed job (the sidecar's job ID: 16 hex characters)
+    <job_id>/                        one directory per completed job (the ML sidecar's job ID: 16 hex characters)
       adapter_config.json            the LoRA settings; it names the base model the adapter was trained on
       adapter_model.safetensors      the LoRA weights themselves
       tokenizer files …              whatever the tokenizer's save_pretrained writes (tokenizer.json, chat template, …)
@@ -24,18 +24,18 @@ The weights live on the provider's **models volume** (Modal: `SIDECAR_VOL_MODELS
   finetuned_model_12b/               by every job of that size); not in the table, still loadable without model_path
 ```
 
-- **Only the adapter is saved, not the base model.** The base model (`google/gemma-4-E4B-it`, `google/gemma-4-12B-it` or `google/gemma-4-31B-it`) is downloaded from Hugging Face into the **HF cache volume** (`SIDECAR_VOL_HF_CACHE`, mounted at `/root/.cache/huggingface`) and shared by all jobs. `adapter_config.json` names it, and inference loads it (4-bit) and attaches the adapter. A trained model therefore needs the base model to stay downloadable (`HF_TOKEN`, see `SIDECAR_HF_SECRET` in [Running on Modal](/training/running#configuration)) and its `model_size` to be right. The adapter is small next to the base model (the code's estimate is 64 MB and up; the 12B one is larger); `size_bytes` has the real number.
+- **Only the adapter is saved, not the base model.** The base model (`google/gemma-4-E4B-it`, `google/gemma-4-12B-it` or `google/gemma-4-31B-it`) is downloaded from Hugging Face into the **HF cache volume** (`ML_SIDECAR_VOL_HF_CACHE`, mounted at `/root/.cache/huggingface`) and shared by all jobs. `adapter_config.json` names it, and inference loads it (4-bit) and attaches the adapter. A trained model therefore needs the base model to stay downloadable (`HF_TOKEN`, see `ML_SIDECAR_HF_SECRET` in [Running on Modal](/training/running#configuration)) and its `model_size` to be right. The adapter is small next to the base model (the code's estimate is 64 MB and up; the 12B one is larger); `size_bytes` has the real number.
 - **Who writes it.** Only the training container, as the last stage of a job: it saves the adapter, commits the models volume (`commit_fn([MODELS_DIR])`), then lists the files and hashes them. Only after that does the job report `completed`, so a model row never points at weights that were not committed. A job that fails or is cancelled earlier saves nothing; one that dies *while* saving can leave a partial directory, which has no row.
 - **Who reads it.** The inference containers mount the models and HF cache volumes (`INFER_VOLS` in `app.py`). A container that was already running does not see a volume change committed elsewhere, so `generate_response` reloads the models volume first (a failing reload is logged and the request goes on with what the container sees); that is how an adapter trained a minute ago is found. The web container mounts neither volume (it only needs data and eval).
-- **Never overwritten, never deleted.** A job ID is used once, so a path is never written twice. gligabao has no endpoint that deletes weights or a model row; to free space, remove the directory yourself (`modal volume rm -r gligabao-train-models trained/<job_id>`); the row stays and inference on it then answers `502` with the sidecar's "No trained model at …" message.
+- **Never overwritten, never deleted.** A job ID is used once, so a path is never written twice. gligabao has no endpoint that deletes weights or a model row; to free space, remove the directory yourself (`modal volume rm -r gligabao-train-models trained/<job_id>`); the row stays and inference on it then answers `502` with the ML sidecar's "No trained model at …" message.
 - **Looking at them.** The admin UI's **Volumes** button (training view, on the app's row; see [Modal app lifecycle](/training/modal#volumes)) shows the volume's entry count; `modal volume ls gligabao-train-models trained/<job_id>` lists a model's files and `modal volume get gligabao-train-models trained/<job_id> ./out` downloads them. The row's `files` (path, size, sha256 of each) lets you verify a copy with `sha256sum`.
-- **Runs outside the server.** `modal run app.py --action train` also saves to `trained/<job_id>` (the job ID is a Unix timestamp there), but it bypasses the sidecar and the monitor, so no row is made; such a model can still be used with `modal run app.py --action generate --model-path trained/<timestamp>`.
+- **Runs outside the server.** `modal run app.py --action train` also saves to `trained/<job_id>` (the job ID is a Unix timestamp there), but it bypasses the ML sidecar and the monitor, so no row is made; such a model can still be used with `modal run app.py --action generate --model-path trained/<timestamp>`.
 
 ## How a model is recorded
 
 1. The training container saves the adapter in `/models/trained/<job_id>` and lists its files with their sizes and sha256 (`ai_train_core/trained_model.py`).
 2. The job's `completed` event carries that as `model`: `{base_model, model_size, path, files: [{path, size_bytes, sha256}], size_bytes, num_examples, dataset_sha256, params}`. `path` is relative to the models volume; `dataset_sha256` is the digest of the dataset file the container actually read (the file of that name can be uploaded again with other content); `params` are the LoRA rank and alpha, dropout, learning rate, batch size, gradient accumulation, sequence length and 4-bit flag.
-3. The Go monitor records it **before** it stores the event (`internal/api/training/monitor.go`; the monitor is described in [Training progress](/training/jobs#training-progress)), so a failure to record makes the event stream retry instead of losing the model. The row (`gb_trained_models`): `run_id` (the job's `gb_training_job_runs` row; null if that row is deleted later), unique `job_id`, `name` (made from size, dataset, steps and the start of the job ID, e.g. `4b-mine.jsonl-100steps-1a2b3c4d`; not unique, there is no rename), `base_model`, `model_size`, `dataset`, `dataset_sha256`, `num_examples`, `num_train_steps`, `final_loss`, `params`, `path`, `files`, `size_bytes`, `created_at`. `params` and `files` are JSON text on both SQLite and PostgreSQL. `job_id` is unique and the insert ignores a duplicate, so a replayed `completed` event (a restart) makes no second row.
+3. The Go monitor records it **before** it stores the event (`internal/training/monitor.go`; the monitor is described in [Training progress](/training/jobs#training-progress)), so a failure to record makes the event stream retry instead of losing the model. The row (`gb_trained_models`): `run_id` (the job's `gb_training_job_runs` row; null if that row is deleted later), unique `job_id`, `name` (made from size, dataset, steps and the start of the job ID, e.g. `4b-mine.jsonl-100steps-1a2b3c4d`; not unique, there is no rename), `base_model`, `model_size`, `dataset`, `dataset_sha256`, `num_examples`, `num_train_steps`, `final_loss`, `params`, `path`, `files`, `size_bytes`, `created_at`. `params` and `files` are JSON text on both SQLite and PostgreSQL. `job_id` is unique and the insert ignores a duplicate, so a replayed `completed` event (a restart) makes no second row.
 4. A `completed` event without `model` (a Modal app that was not redeployed) records nothing and logs a warning. Existing databases get the table the next time the server starts (`CREATE TABLE IF NOT EXISTS`); there is nothing to migrate.
 
 ## How inference runs
@@ -43,9 +43,9 @@ The weights live on the provider's **models volume** (Modal: `SIDECAR_VOL_MODELS
 ```
 client / admin UI ── POST /v1/gb/training/models/{id}/infer ──► Go server (training.InferOf)
                                       reads the row: model_size, path (the client sends neither)
-                                                   │  sidecar.Client.Infer
+                                                   │  ml_sidecar.Client.Infer
                                                    ▼
-                          sidecar: POST /infer/query {prompt, model_size, model_path, …}   (routes.py, forwarded as is)
+                          ML sidecar: POST /infer/query {prompt, model_size, model_path, …}   (routes.py, forwarded as is)
                                                    │  proxied by the modal backend
                                                    ▼
                           Modal web API (api/api.py): validates model_size and model_path
@@ -60,9 +60,9 @@ client / admin UI ── POST /v1/gb/training/models/{id}/infer ──► Go ser
 
 - **`model_path`** is `trained/<job_id>` and nothing else: the web API refuses anything with another shape (`400`), and `resolve_model_dir` checks again inside the container, so a path cannot leave the `trained/` directory. A directory without `adapter_config.json` is a "No trained model at …" error. Without `model_path` the legacy `finetuned_model_<size>` adapter is used.
 - **`model_size` must match the weights.** It chooses the GPU function (4b: A10G, 12b: A100, 31b: A100 80GB). The Go endpoint passes the size recorded for the model; a direct caller of `/infer/query` has to pass the right one, or the wrong GPU may run out of memory.
-- **The model stays warm.** Since gligabao 0.39.0 the first request of a GPU container loads the base model from the HF cache (4-bit) and attaches the adapter (a cold request takes minutes), and the container keeps it in memory and stays up for `SIDECAR_INFER_IDLE_TIMEOUT_S` (default 60 seconds) after its last request, so the next requests skip the load. A request for another model replaces the loaded one (one model per container). The answer says which it was (`cold_start`, `load_seconds`), and the model's request history in the admin UI shows it for every request. What a cold request does in the container, step by step, and how to read the numbers: [Cold and warm starts](/training/modal#cold-and-warm-starts). The admin UI's **Stop inference** button ends the warm containers at once; see [Warm inference containers](/training/modal#warm-inference-containers). The Modal functions have a 600 second timeout per request (`app.py`; the model load counts); the Go client waits up to 15 minutes (`context` limit, no HTTP timeout).
+- **The model stays warm.** Since gligabao 0.39.0 the first request of a GPU container loads the base model from the HF cache (4-bit) and attaches the adapter (a cold request takes minutes), and the container keeps it in memory and stays up for `ML_SIDECAR_INFER_IDLE_TIMEOUT_S` (default 60 seconds) after its last request, so the next requests skip the load. A request for another model replaces the loaded one (one model per container). The answer says which it was (`cold_start`, `load_seconds`), and the model's request history in the admin UI shows it for every request. What a cold request does in the container, step by step, and how to read the numbers: [Cold and warm starts](/training/modal#cold-and-warm-starts). The admin UI's **Stop inference** button ends the warm containers at once; see [Warm inference containers](/training/modal#warm-inference-containers). The Modal functions have a 600 second timeout per request (`app.py`; the model load counts); the Go client waits up to 15 minutes (`context` limit, no HTTP timeout).
 - **The answer** is `{"response", "model_size", "model_path", "adapter", "cold_start", "load_seconds", "input_tokens", "output_tokens"}` (`load_seconds`: how long the model load took, the container start not included; 0 when warm). Generation samples (`do_sample`) with the given `temperature` (default 0.7) up to `max_tokens` (default 1024; the Go endpoint allows at most 8192). The prompt is wrapped in the same Gemma turn markers as the training data (`prompt_format.py`).
-- **Errors.** The Go endpoint answers `400` for a bad body, `404` for an unknown model, `502` if the sidecar fails (with its message when the generation itself failed, such as missing weights; a generic message otherwise) and `503` without a sidecar. The sidecar reports a failed generation as `200 {"error": "…"}`, which the Go client turns into `*sidecar.InferError`.
+- **Errors.** The Go endpoint answers `400` for a bad body, `404` for an unknown model, `502` if the ML sidecar fails (with its message when the generation itself failed, such as missing weights; a generic message otherwise) and `503` without a sidecar. The ML sidecar reports a failed generation as `200 {"error": "…"}`, which the Go client turns into `*ml_sidecar.InferError`.
 
 ## Adding an inference endpoint
 
@@ -70,12 +70,12 @@ There are three layers, and a new endpoint touches one or more of them. Redeploy
 
 1. **A new Go endpoint over trained models** (no Python change; for example a batch call, or a different default):
    - write the handler next to `InferOf` in `internal/api/training/models.go`: pick the database (`pick`), read the model with `relational.GetTrainedModel`, and take `ModelSize` and `Path` **from the record, never from the request**;
-   - if it needs something new from the sidecar, add a method to `internal/sys/sidecar/inference.go` (a long call uses `postVia(ctx, c.stream, …)`, which has no overall timeout) and to the `Inferer` interface in `models.go` (the fake sidecar of the tests implements it);
+   - if it needs something new from the ML sidecar, add a method to `internal/sys/ml_sidecar/inference.go` (a long call uses `postVia(ctx, c.stream, …)`, which has no overall timeout) and to the `Inferer` interface in `models.go` (the fake ML sidecar of the tests implements it);
    - register it in `registerTraining` (`internal/sys/server/server.go`);
-   - test it with the fake sidecar (`internal/api/training/models_test.go`).
-2. **A new sidecar route** (a new kind of request to the Modal app):
-   - add `("METHOD", "/path")` to `ROUTES` in `sidecar/routes.py`: the sidecar forwards the route to its backend untouched, it does not parse the body;
-   - add the handler to `create_api` in `sidecar/ai_train/api/api.py`: validate the input (`bad_model_size`, `valid_model_path`), call an injected function with `run_in_threadpool`;
+   - test it with the fake ML sidecar (`internal/api/training/models_test.go`).
+2. **A new ML sidecar route** (a new kind of request to the Modal app):
+   - add `("METHOD", "/path")` to `ROUTES` in `ml_sidecar/routes.py`: the ML sidecar forwards the route to its backend untouched, it does not parse the body;
+   - add the handler to `create_api` in `ml_sidecar/ai_train/api/api.py`: validate the input (`bad_model_size`, `valid_model_path`), call an injected function with `run_in_threadpool`;
    - give `create_api` that function from `serve_api` in `app.py`, built with `provider.call(...)` (the API module never imports a provider);
    - add the Go client method (step 1) and a test in `ApiTest` (`test_ai_train_core.py`) with a fake in place of the function.
 3. **A new generation function** (another GPU function, e.g. another decoding mode or model type):
@@ -87,7 +87,7 @@ A different kind of weights (another model size, or a trainer that saves somethi
 
 ## Details and limits
 
-- Listing and reading are plain database calls and need no sidecar; only inference does.
+- Listing and reading are plain database calls and need no ML sidecar; only inference does.
 - The row is the record of what was trained, not proof the weights still exist: gligabao does not check the volume.
 - No endpoint renames or deletes a model, merges adapters, or streams the generated text (a model is handed to your own code by a [deployment](/training/deploying)); one request is one prompt and one answer.
 - Training the same settings twice makes two models (and two directories); compare them by `final_loss`, `dataset_sha256` and `params`.
@@ -96,15 +96,15 @@ A different kind of weights (another model size, or a trainer that saves somethi
 
 | Endpoint | |
 |---|---|
-| `GET /v1/gb/training/models[?db=][&limit=]` | `{"models": [...]}`, newest first (default 100, at most 500). |
+| `GET /v1/gb/training/models[?db=][&limit=][&model_type=<type>]` | `{"models": [...]}`: the models of the user (every type, or the one named), newest first (default 100, at most 500). |
 | `GET /v1/gb/training/models/{id}[?db=]` | One trained model; `404` if unknown. |
 | `POST /v1/gb/training/models/{id}/audits[?db=]`, `GET /v1/gb/training/models/{id}/audits`, `GET /v1/gb/training/audits/{id}`, `POST /v1/gb/training/audits/{id}/cancel` | Training data audits of the model: it is asked its own training dataset's questions, one per prompt, and an LLM judges the answers in batches, to check that the training took. See [Training data audit](/training/audit#api). |
 | `POST /v1/gb/training/models/{id}/evals[?db=]`, `GET /v1/gb/training/models/{id}/evals`, `GET /v1/gb/training/evals/{id}`, `POST /v1/gb/training/evals/{id}/cancel` | Evals of the model with an LLM as the judge: it is asked its training dataset's questions, one per prompt, and the answers are scored in batches. See [Evals of trained models](/evals/training#api). |
-| `POST /v1/gb/training/models/{id}/infer[?db=]` | Body `{"prompt", "max_tokens"?, "temperature"?}`; runs the prompt through that model's weights on the sidecar (size and path come from the record) and answers `{"id", "model_id", "response", "status", "input_tokens", "output_tokens", "cold_start", "load_seconds", "duration_ms"}`. Every request is stored in `gb_trained_model_inferences` (prompt, response, status, error, tokens, `cold_start`, `load_seconds`, duration), failed ones too. Takes minutes when a GPU container has to start and load the model (a cold request, see [Cold and warm starts](/training/modal#cold-and-warm-starts)). See [How inference runs](#how-inference-runs) for the error codes. |
+| `POST /v1/gb/training/models/{id}/infer[?db=]` | Body `{"prompt", "max_tokens"?, "temperature"?}`; runs the prompt through that model's weights on the ML sidecar (size and path come from the record) and answers `{"id", "model_id", "response", "status", "input_tokens", "output_tokens", "cold_start", "load_seconds", "duration_ms"}`. Every request is stored in `gb_trained_model_inferences` (prompt, response, status, error, tokens, `cold_start`, `load_seconds`, duration), failed ones too. Takes minutes when a GPU container has to start and load the model (a cold request, see [Cold and warm starts](/training/modal#cold-and-warm-starts)). See [How inference runs](#how-inference-runs) for the error codes. |
 | `POST /v1/gb/training/models/{id}/deployments`, `GET /v1/gb/training/models/{id}/deployments[?limit=]` | Deploy the model through a deployer hook of the embedding program, and list its deployments (`gb_trained_model_deployments`). See [Model deploying](/training/deploying). |
 
 Each model has an **Audit** button (see [Training data audit](/training/audit); its results are in `gb_training_audit_runs` and `gb_training_audit_cases`) and an **Eval** button in the training view of the admin UI (see [Evals of trained models](/evals/training)); the eval's results are in the eval tables (`gb_experiment_case_runs`, `gb_training_eval_run_meta` and `gb_training_case_meta`, see [Evals of trained models](/evals/training#tables)).
 
 The columns of `gb_trained_models` are described in [Training jobs](/training/jobs#trained-models). The **training** view of the admin UI lists the models; clicking one shows its settings and files and a form that runs a prompt through it, with the history of the requests under it. Each request there shows whether it was a cold start (and the model load time) or warm, the time without the load and the token counts.
 
-From Go (`relational` package): `RecordTrainedModel`, `GetTrainedModel`, `ListTrainedModels`; the Go client has `Infer(ctx, sidecar.InferRequest)`.
+From Go (`relational` package): `RecordTrainedModel`, `GetTrainedModel`, `ListTrainedModels`; the Go client has `Infer(ctx, ml_sidecar.InferRequest)`.

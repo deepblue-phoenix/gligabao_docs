@@ -15,7 +15,7 @@ export OPENAI_API_KEY=...           # required: embeddings (remember embeds what
 ```
 
 <Tip>
-  Prefer containers? `docker compose up --build` starts the server on `localhost:7878` and the [Python sidecar](/operations/sidecar) on `localhost:8787`, on one Docker network (the server talks only to the sidecar, which needs Modal tokens to proxy training calls to Modal). Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` (both are required) in your shell first; data is kept in the `gligabao-data` volume.
+  Prefer containers? `docker compose up --build` starts the server on `localhost:7878`; its image contains the [ML sidecar](/operations/ml-sidecar), which the server starts in training mode (the server talks only to the ML sidecar, which needs Modal tokens to proxy training calls to Modal). Set `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` (both are required) in your shell first; data is kept in the `gligabao-data` volume.
 </Tip>
 
 <Tip>

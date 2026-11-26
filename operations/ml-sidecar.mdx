@@ -1,0 +1,169 @@
+---
+title: "ML sidecar"
+description: "The FastAPI service the Go server talks to, and that proxies every request to its backend (Modal): its routes, backends, settings, container and Go client."
+---
+
+`ml_sidecar/`, `ml_sidecar/routes.py`, `ml_sidecar/backends/`, `ml_sidecar/ml_sidecar_config.py`, `ml_sidecar/ai_train/`, `Dockerfile`, `docker-compose.yml`, `internal/sys/ml_sidecar/ml_sidecar.go`, `internal/sys/ml_sidecar/training_jobs.go`, `internal/sys/ml_sidecar/training_events.go`
+
+The ML sidecar is a small Python service that runs next to the Go server. **The Go server only ever talks to the ML sidecar, and the ML sidecar proxies to the compute backend (Modal today).** The Go code never calls Modal or any other provider, never holds provider credentials and never learns what runs behind the ML sidecar's REST API.
+
+```
+Go server ── HTTP ──► ML sidecar (ml_sidecar/, FastAPI) ── HTTP ──► backend: web API of the Modal app (ml_sidecar/ai_train)
+internal/sys/ml_sidecar        routes.py → Backend.forward              runs the jobs on a cloud GPU
+```
+
+It exists for work that is easier to do in Python (libraries that have no good Go equivalent), and for keeping everything cloud-specific out of the Go server. The ML sidecar answers `GET /health` itself and forwards every other route, unchanged, to its **backend**. The backend that exists today, `modal`, runs Gemma-4 fine-tuning and inference with its own web API; see [Remote training](#remote-training). The Go server starts training jobs through the ML sidecar (the endpoint `POST /v1/gb/training/jobs`, or the **training** view of the admin UI), records each one and follows its progress over SSE; this is documented in the [Training](/training/overview) section.
+
+## The service
+
+`ml_sidecar/main_ml_sidecar.py` is a [FastAPI](https://fastapi.tiangolo.com/) app run by [uvicorn](https://www.uvicorn.org/). Dependencies are in `ml_sidecar/requirements_ml_sidecar.txt` (including `httpx` and `modal`).
+
+| Endpoint | Response |
+|---|---|
+| `GET /health` | `200 {"status": "ok"}`, answered by the ML sidecar itself. It says the ML sidecar is up, not that the backend is reachable. |
+| `GET /models/file?model_path=trained/<job id>&file=<path>` | The raw bytes of one file of a trained model, answered by the ML sidecar itself (not forwarded). |
+| `POST /training/job_start`, `GET /training/job_progress`, `GET /training/job_events` (SSE), `POST /training/job_cancel`, `POST /research/job_start`, `GET /research/job_events` (SSE), `POST /research/job_cancel`, `GET /research/job_export`, `POST /infer/query`, `POST /evals/add_to_dataset`, `GET /evals/get_dataset_count` | Answered by the **backend** (below). |
+
+### Backends
+
+The routes in `ml_sidecar/routes.py` are the only API the Go server knows (`internal/sys/ml_sidecar/`). Each one is forwarded as it is to the configured `Backend` (`ml_sidecar/backends/`): method, query string, body and content type go out; the status, content type and body come back as the backend sent them, and an SSE stream such as `job_events` is passed through as it arrives, with no read timeout. A `4xx` or `5xx` from the backend reaches the Go server unchanged. If the backend cannot be reached at all, the ML sidecar answers `502 {"error": ...}`.
+
+The only backend today is `modal` (`backends/modal_backend.py`): it forwards to the web API (`serve_api`) of the Modal app in `ml_sidecar/ai_train/app.py`. Deploy that app from the admin UI (the ML sidecar runs the deploy itself and streams its log; see [Modal app lifecycle](/training/modal)) or with `cd ml_sidecar/ai_train && modal deploy app.py`; the ML sidecar finds its web URL through the Modal SDK, once, on the first request (the app must be deployed, and the app name must be `ML_SIDECAR_APP_NAME`). With `modal serve` (dev) there is no deployed app, so set `ML_SIDECAR_MODAL_WEB_URL` to the URL it prints. A URL that cannot be found is a `502` that says so.
+
+To add a backend, implement `Backend.forward` in `backends/` and register it in `backends/__init__.py::get_backend`; an HTTP service that serves the same API can subclass `HttpBackend` and only provide its URL. The Go server needs no change.
+
+### Backend actions and Modal lifecycle
+
+Besides forwarding, the ML sidecar answers a few routes itself, for what an operator does to a backend (`ml_sidecar/backends/actions.py`). The `modal` backend uses them to **manage the Modal app's lifecycle** without the `modal` CLI: `deploy` (the Modal SDK's `app.deploy()` in a subprocess), `stop` (`modal app stop`), `cancel` of a running one, a live log of each run, a read-only list of the **active Modal apps of this system** (the configured app and `<it>-<suffix>` ones), each with its own deploy, stop and log, and a read-only list of the app's volumes. The credentials are the ML sidecar's `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`; the deployment itself lives in Modal, so it survives ML sidecar restarts (only the last run's log is kept in memory). The admin UI's training view drives it. How it works, the stages, the log stream, what Stop does to running jobs and troubleshooting are on [Modal app lifecycle](/training/modal).
+
+| Endpoint | Response |
+|---|---|
+| `GET /backends` | The backends with their live status (`name`, `configured`, `healthy`; for `modal` also `deployed`, `app`, `error`, and each action's state). |
+| `POST /backends/{name}/actions/{action}` | Starts the action (`deploy`, `stop`): `202` with its state, `409` if it (or the action it excludes) is running, `404` for an unknown backend or action. |
+| `POST /backends/{name}/actions/{action}/cancel` | Stops a running action: SIGINT, then a kill after 10 seconds. `202`, or `409` if it is not running. The run ends as `cancelled`. |
+| `GET /backends/{name}/actions/{action}[?from=<i>]` | The state (`idle`, `running`, `succeeded`, `failed`, `cancelled`; `stage`, `stages`, `started_at`, `finished_at`, `exit_code`, `error`) and the kept log (last 5000 lines, stdout and stderr merged). |
+| `GET /backends/{name}/actions/{action}/events[?from=<i>]` | SSE: `log` and `state` events; ends when the run is over. |
+| `GET /backends/{name}/apps` | `{"apps": [...]}`: the active apps of this system with the state of their actions. `404` if the backend has none, `502` if they cannot be listed. |
+| `…/backends/{name}/apps/{app}/actions/{action}[/events\|/cancel]` | The action routes above for one app (`404` for an app that is not ours). |
+| `GET /backends/{name}/volumes` | `{"volumes": [...]}`: the backend's storage volumes, read only. `404` if it has none, `502` if they cannot be listed. |
+
+The Go server passes them on, unchanged, as `GET /v1/gb/admin/api/ml_sidecar/backends` (the list) and `POST|GET /v1/gb/admin/api/ml_sidecar/backends/{name}/actions/{action}[/events|/cancel]` `GET .../backends/{name}/volumes`, `GET .../backends/{name}/apps` and `.../backends/{name}/apps/{app}/actions/{action}[/events|/cancel]`. Because the ML sidecar has no authentication, keep it on localhost or a private network: anyone who reaches these routes can deploy or stop the app. A new backend gets actions by overriding `Backend.actions()` (and `apps()`, `app_actions()`, `volumes()`); the admin UI draws the buttons it reports.
+
+### Configuration
+
+Configuration is by environment variable. At startup `main_ml_sidecar.py` reads them once into a `MLSidecarConfig` (a frozen pydantic model, `ml_sidecar/ml_sidecar_config.py`) and passes it to `create_app(config)`; the app keeps it on `app.state.config` (handlers can use the `get_config` helper). New settings are added as fields of that struct. An invalid value stops the ML sidecar at startup with a validation error.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ML_SIDECAR_HOST` | `127.0.0.1` | Interface to listen on. Local only by default, as the ML sidecar has no authentication. |
+| `ML_SIDECAR_PORT` | `8787` | Port to listen on. |
+| `ML_SIDECAR_BACKEND` | `modal` | Which backend answers the API (only `modal` exists). |
+| `ML_SIDECAR_APP_NAME` | `gligabao-train` | Modal backend: name of the deployed Modal app. The training code reads the same variable, so the two agree. |
+| `ML_SIDECAR_MODAL_WEB_URL` | *(unset)* | Modal backend: use this URL instead of looking the app up. |
+| `MODAL_TOKEN_ID` | *(required for `modal`)* | Modal API token id. |
+| `MODAL_TOKEN_SECRET` | *(required for `modal`)* | Modal API token secret. |
+
+With the `modal` backend the credentials are checked when the config is loaded: the ML sidecar refuses to start if either is missing or empty (they are held as `SecretStr`, so they do not show up in logs). Create a token with `modal token new`; a `~/.modal.toml` is not read by this check. They live only in the ML sidecar's environment: the Go server never sees them.
+
+Run it without a container:
+
+```sh
+cd ml_sidecar
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements_ml_sidecar.txt
+export MODAL_TOKEN_ID=ak-... MODAL_TOKEN_SECRET=as-...
+python main_ml_sidecar.py              # listens on 127.0.0.1:8787
+curl http://127.0.0.1:8787/health
+```
+
+## Remote training
+
+`ml_sidecar/ai_train/` fine-tunes Gemma-4 (4B, 12B and 31B, LoRA) on a cloud provider and serves the result, with its own web API. It is the Modal side of the `modal` backend above: it runs on Modal, not inside the ML sidecar process, and is not imported by `main_ml_sidecar.py`; `Dockerfile.ml_sidecar` copies it only so that the ML sidecar can deploy it to Modal. Nothing but the ML sidecar calls its web API. It has its own section of this site, [Training](/training/overview):
+
+- [Training jobs](/training/jobs): how the Go server starts a job and records it in `gb_training_job_runs`, and the `TrainingJob` struct.
+- [Training datasets](/training/datasets), [Model sizes](/training/models) and the [ML sidecar training API](/training/ml-sidecar-api).
+- [Running on Modal](/training/running): the code layout, the `modal` commands and the `ML_SIDECAR_*` settings of the training code.
+- [Modal app lifecycle](/training/modal): deploy, live log, cancel, stop and volumes from the admin UI.
+- [Providers and extending](/training/providers): the provider abstraction, adding a provider, a model size or a function.
+
+## The research agent in Modal
+
+The same Modal app also runs the [research agent](/guides/deep-research-agent) when a research is started with the `modal` [runner](/guides/research#where-the-agent-runs-the-runner). The Go server asks the ML sidecar, the ML sidecar forwards to the web API, and the web API spawns the function `run_agent` and returns at once, exactly as for a training job:
+
+| Route | |
+|---|---|
+| `POST /research/job_start` | body `{"topic", "max_steps"?, "model"?, "dataset"?, "agent"?, "agent_bundle"?, "max_cost_usd"?}` → `{"job_id", "provider_job_id", "status": "started"}`. `agent` is the name of the [agent definition](/guides/agent-defs) and `agent_bundle` the definitions as a JSON object (what the server sends, see [Modal](/guides/agent-defs#in-modal); at most 1 MiB), `max_cost_usd` a cap on the research (0: none). `400` for a bad body (topic required, `max_steps` 1 to 40, `agent` a name without spaces of at most 40 characters, `agent_bundle` not an object or too big, `max_cost_usd` negative). `503` if the app was deployed without the agent binary. |
+| `GET /research/job_events?job_id=[&from=N]` | SSE stream of the job's events, with the same ids, reconnection (`from`), keepalives, time limit and watchdog as `/training/job_events` |
+| `POST /research/job_cancel` | body `{"job_id"}`: sets the job's stop flag (`200`; `404` unknown job, `409` already over) |
+| `GET /research/job_export?job_id=` | the file the agent handed back when its job ended (`application/zip`, an archive of `internal/db/dbexport`), streamed. `404` if the job has none, `400` for a bad id. Its size and SHA-256 are in the `export` field of the job's final event. |
+
+- **The function.** `run_agent` (`app.py`) runs in a CPU container (`AGENT_IMAGE`: Debian slim with the binary at `/opt/gligabao_agent`, added with `ImageSpec.local_files`, so a new binary does not rebuild anything else) with the secret `ML_SIDECAR_AGENT_SECRET` and the timeout `ML_SIDECAR_AGENT_TIMEOUT_S`. It calls `ai_train_core/agent_run.py`: it runs the binary with `--json --events --max-steps N [--model M] [--dataset D] --timeout T --db <temporary directory> -` and the topic on stdin, so the whole tree of agents and their database live in that container and are gone with it. There are no volumes.
+- **The events** go to the job's event log (`event_log.py`: a Modal Dict, 7 days), which the web API streams. The binary's `--events` lines become `state` events (`agent`, `state_seq`, `state`, `step`, `detail`, `error`) and `usage` events (the tokens, cost, steps and sub-agents of the whole tree); other stderr lines become `log` events (the first 200); `status` events say `running`, then end it: `completed` (the `report` and the final `usage`), `failed` (`error`: the exit code and the end of stderr) or `cancelled`. The events are written from a thread of their own, so a slow Dict never blocks the binary, and the final status is written after every event before it. The full protocol is in the docstring of `agent_run.py`.
+- **The export.** The function runs the binary with `--export <job directory>/export.zip`. When the binary ends (also if it failed or was stopped) and left the file, `agent_run.py` stores it in the event log with `EventLog.put_export`: the file in chunks of 4 MiB (`<job>:x<n>`, one Dict update each, retried), then its description (`<job>:export`: bytes, SHA-256, chunks), and only then the final status event, which gets the field `export` (`{"bytes", "sha256"}`): whoever sees the final event finds the file. `GET /research/job_export` reads the chunks back and streams them; the Go server checks the size and the SHA-256. A file over 256 MiB, an empty one, or a Dict that keeps failing is not stored: a `log` event says the knowledge of the agent is lost, and the job ends as it would have (its `completed` status and report do not depend on it). If the binary ended with a report but exited with an error because only the export failed, the job is `completed` with that report and a `log` event. The entries expire with the job's (7 days in a Dict); the server downloads the export as soon as it sees the final event.
+- **Stopping.** The stop flag of the job is looked at every 2 seconds (before the binary starts, too); then the binary gets `SIGTERM` (it ends the research as stopped) and `SIGKILL` 20 seconds later; the job ends `cancelled`.
+- **Without the binary.** `run_agent` is always defined (a Modal app must define the same functions in every container) but the web API only spawns it when its image says the binary was there at deploy time (`ML_SIDECAR_AGENT_DEPLOYED`, set in the image of the web function): else `/research/job_start` answers `503` and tells how to fix it. Deploy again after building the binary.
+- **Where the binary comes from.** `./run_build.sh` builds `build/gligabao_agent_linux_amd64`; the `Dockerfile` builds it in a Go stage and copies it next to `ml_sidecar/ai_train/`, so a deploy from the server's container needs nothing else. Try it by hand: `cd ml_sidecar/ai_train && modal run app.py --action agent --prompt "topic"`.
+- **Go side.** `internal/sys/ml_sidecar/research_jobs.go` (`StartResearchJob`, `CancelResearchJob`, `StreamResearchJobEvents`, `DownloadResearchExport`); the server's adapter is `internal/sys/server/research_remote.go`, and `internal/agent_research/remote.go` follows the events, records them in the run and imports the export (`internal/db/dbimport`).
+
+### The server starts it
+
+The ML sidecar's address is `ml_sidecar_url` / `ML_SIDECAR_URL` (default `http://127.0.0.1:8787`). With `training = true`, before it connects, the server checks the address: if an ML sidecar already answers `GET /health` there, nothing is started; if nothing answers and the address is local (`127.0.0.1`, `localhost`, `::1`), the server starts `main_ml_sidecar.py` as a child process (`internal/sys/ml_sidecar/launcher.go`, `ml_sidecar.Launch`), tells it to listen on that host and port (`ML_SIDECAR_HOST`, `ML_SIDECAR_PORT`), waits up to 60 seconds for the health check, and stops it (interrupt, then kill after 5 seconds) when the server stops. The child inherits the server's environment, so `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` reach it. An address that is not on this machine is never started (the log says so). It never stops the server from starting: if the launch fails, the warning says why and the training preflight then reports the ML sidecar as unreachable.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `ml_sidecar_autostart` | `true` | `false` leaves starting the ML sidecar to you (`./run_server_ml_sidecar_local.sh`). |
+| `ml_sidecar_forward_logs` | `true` | The stdout and stderr of the ML sidecar the server started are forwarded to the server's own stdout and stderr, so whoever runs the server (a container's log) sees both. `false` drops them. Temporary. |
+| `ml_sidecar_dir` / `ML_SIDECAR_DIR` | *(searched)* | The `ml_sidecar` directory (the one with `main_ml_sidecar.py`). Default: `ml_sidecar` next to the binary, `ml_sidecar` in the working directory, then `../gligabao/ml_sidecar`. The interpreter is `ml_sidecar/.venv/bin/python` if it exists, else `python3` (`python` on Windows); the requirements must be installed in it. |
+
+In training mode startup also checks that everything training needs is accessible (gligabao 0.240.0): the Anthropic API key, the ML sidecar (reachable, every backend configured and healthy, which proves the Modal tokens work) and the AWS credentials of each configured S3 bucket (training datasets, evals). It halts with one error that lists every problem. Without training mode nothing changes.
+
+## The container
+
+There is no dedicated image for the ML sidecar (for now): it is packaged in the server's image, in `/app/ml_sidecar`, and the server starts it as a child process in training mode (the default `ml_sidecar_url` is local). The `Dockerfile` has Python, a venv `/app/ml_sidecar/.venv` with the requirements installed (the interpreter the server looks for), `main_ml_sidecar.py`, `ml_sidecar_config.py`, `routes.py`, `backends/`, `ai_train/` (what the deploy action uploads to Modal) and `gligabao_agent_linux_amd64` (the research agent that the deploy bakes into the Modal app, built in the Go stage). The log of the ML sidecar appears in the container's log (`ml_sidecar_forward_logs`). Pass `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` to the container: without them the ML sidecar exits at startup, and training mode refuses to start.
+
+The ML sidecar has no authentication and listens on `127.0.0.1` inside the container; nothing publishes its port. There is no `Dockerfile.ml_sidecar` or `run_build_ml_sidecar.sh` any more (gligabao 0.242.0).
+
+### With docker compose
+
+`docker-compose.yml` runs only the server (the ML sidecar is inside its container):
+
+```sh
+export ANTHROPIC_API_KEY=...
+export MODAL_TOKEN_ID=... MODAL_TOKEN_SECRET=...
+docker compose up --build
+```
+
+The port is published on `127.0.0.1` only; the server's data lives in the `gligabao-data` volume. The ML sidecar the server starts inherits `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` from the container's environment.
+
+## The Go client
+
+`internal/sys/ml_sidecar` is the only package in the Go code that knows the ML sidecar's HTTP API, and the ML sidecar is the only thing the Go server calls for this work: there is no Modal client, token or URL anywhere in Go. In it `ml_sidecar.go` has the client and `Health`, `training_jobs.go` and `training_events.go` the training calls.
+
+```go
+c := ml_sidecar.New("")                       // "" is ml_sidecar.DefaultBaseURL, http://127.0.0.1:8787
+resp, err := c.Health(ctx)                 // resp.Status == "ok"
+```
+
+- `ml_sidecar.New(baseURL)` returns a `*Client` with a 30 second timeout per request. A trailing `/` on the URL is ignored.
+- `Client.Health(ctx)` calls `GET /health`. It returns an error if the ML sidecar cannot be reached, answers with a status other than 200, sends a body that is not the expected JSON, or reports a `status` other than `"ok"`.
+- `Client.StartTrainingJob(ctx, req)` calls `POST /training/job_start` and returns the `TrainingJob` the ML sidecar reports; `Client.StreamTrainingJobEvents(ctx, jobID, from, fn)` follows `GET /training/job_events` (SSE) and calls `fn` with each event; `StartTrainingJobRequest.DatasetContent` carries the dataset file. There are no dataset methods: the ML sidecar has no dataset endpoints. See [Training jobs](/training/jobs#the-go-client) and [Training datasets](/training/datasets).
+- Errors name the method and path (`ML sidecar GET /health: ...`) and, for a bad status, include the start of the response body. A bad status is a `*ml_sidecar.StatusError` (`Code`, `Body`, and `Message()`, the ML sidecar's `error` text), so callers can tell a request the ML sidecar rejected (400) from an ML sidecar that is down. The event stream has no overall timeout; its context ends it.
+
+### Startup check and status
+
+On startup the Go server calls the ML sidecar's `GET /health` once (5 second timeout). If the ML sidecar does not answer correctly the server still starts: it logs a warning, sets the `server.MLSidecarActive` flag to false and runs without an ML sidecar client, so everything that needs the ML sidecar answers `503` ("ML sidecar is not active") or does nothing. The check runs once, so restart the server after starting the sidecar. Because `/health` is answered by the ML sidecar itself, an ML sidecar whose backend (Modal) is down still counts as active; its calls then fail with `502` when they are made.
+
+`GET /v1/gb/admin/api/ml_sidecar/status` answers `{"ml_sidecar_up": bool, "ml_sidecar_active": bool}`: `ml_sidecar_up` is a live health check made by the server, `ml_sidecar_active` is the decision taken on startup. The admin UI shows `ml_sidecar_up` as a badge in the top bar (`ML sidecar: up` / `ML sidecar: down`, refreshed every 15 seconds; `ML sidecar: up (restart server)` when it is up but was down at startup), and its training view uses `ml_sidecar_active` to show a "ML sidecar not active" notice and disable `Run`.
+
+The tests (`internal/sys/ml_sidecar/t_ml_sidecar_test.go`) run the client against an `httptest` server, so they need neither Python nor Docker.
+
+## Adding an endpoint
+
+An endpoint has three parts: the Go client, the ML sidecar route and the backend that answers it.
+
+1. Add the path to `ROUTES` in `ml_sidecar/routes.py`. It is then forwarded to the backend as it is; the ML sidecar does no work of its own for it.
+2. Implement it in the backend: for `modal`, a route of the web API in `ml_sidecar/ai_train/api/` (see the [ML sidecar training API](/training/ml-sidecar-api)). Another backend must serve the same path.
+3. Add a method to `Client` in `internal/sys/ml_sidecar` (a new file per topic, like `training_jobs.go`), with typed request and response structs. Keep all calls to the ML sidecar in that package, and never call a backend from Go.
+4. If the Go server should start it, add an admin handler in `internal/api/admin` that takes the client through a small interface, as `StartTrainingJobOf` does.
+5. A route that is answered by the ML sidecar itself, like `/health`, is added in `ml_sidecar/main_ml_sidecar.py` instead (and any new package to `ml_sidecar/requirements_ml_sidecar.txt`). If the Dockerfile must copy new files, update the `Dockerfile`.
+6. Document the endpoint in the tables above.

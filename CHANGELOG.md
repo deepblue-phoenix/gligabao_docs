@@ -4,6 +4,24 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.66.0] - 2026-11-26
+
+Documents gligabao 0.236.0 to 0.250.0.
+
+### Changed
+- The Python sidecar is now the **ML sidecar** everywhere (gligabao 0.241.0): the pages `operations/sidecar` and `training/sidecar-api` moved to `operations/ml-sidecar` and `training/ml-sidecar-api` (the old URLs redirect), and every name is the new one (`ml_sidecar_url`, `ML_SIDECAR_*`, `ml_sidecar/`, `internal/sys/ml_sidecar`, the admin status fields `ml_sidecar_up` / `ml_sidecar_active`).
+- ML sidecar page: the server starts it in training mode (`ml_sidecar_autostart`, `ml_sidecar_dir`, `ml_sidecar_forward_logs`), it is packaged in the server's image (no `Dockerfile.ml_sidecar` any more), docker compose runs only the server, and the startup check of the credentials training needs (0.240.0).
+- Training endpoints: all of them are authenticated and work on the data of the user of the request; the GCNII* routes are under `/v1/gb/training/gcnii/`; one pipeline for both model types (`model_type` on `POST /v1/gb/training/jobs`, `model_type` filters of the job and model lists, backends, stop for GCNII* jobs) (0.236.0, 0.237.0, 0.247.0).
+- Training events: one `TrainingEvent` type, the feed carries the events gligabao adds (`started`, `stop_requested`, `model_recorded`, `stream_error`) and the `system` events of the training container (0.245.0, 0.246.0).
+- Guides "Per-user models (GCNII*)" and "GCNII* on a cluster" use the new routes and the training backend.
+- Hooks: every hook takes the `Runtime` after `ctx` (0.244.0).
+
+### Added
+- Training datasets in S3 (`training_datasets_s3_*`) next to the directories (0.238.0).
+- `GET /v1/gb/training/jobs/{id}/meta` and the table `gb_training_job_runs_meta` (0.248.0, 0.249.0).
+- `GET /v1/gb/datasets/{name}/stats` (0.239.0).
+- Hooks: `Runtime`, `Hooks.OnStart` and `Hooks.TrainingEvents` (0.243.0 to 0.246.0).
+
 ## [0.65.0] - 2026-11-26
 
 ### Added

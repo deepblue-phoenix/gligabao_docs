@@ -32,9 +32,9 @@ Do not add an `[Unreleased]` section: the top entry must always match `VERSION`.
   feed `index`, `getting-started/*`, `api-reference/overview`, `embedding/go-library` and `operations/versioning`.
   The `evals/` section is `../gligabao/docs/evals.md` (`evals/evals`), `experiments.md` (`evals/experiments`) and
   `training/EVALS.md` (`evals/training`). The training data audit is `../gligabao/docs/training/AUDIT.md` (`training/audit`).
-- The `training/` section is written from `../gligabao/docs/sidecar.md`, `../gligabao/docs/training/*.md` and the code under
-  `internal/sys/sidecar`, `internal/api/training/` and `sidecar/ai_train/`; it does not map one-to-one to a source page.
-  Update it when training jobs, the sidecar API, the `gb_training_job_runs` table or `sidecar_url` change.
+- The `training/` section is written from `../gligabao/docs/training/ml_sidecar.md`, `../gligabao/docs/training/*.md` and the code under
+  `internal/sys/ml_sidecar`, `internal/training/`, `internal/api/training/` and `ml_sidecar/ai_train/`; it does not map one-to-one to a source page.
+  Update it when training jobs, the ML sidecar API, the `gb_training_job_runs` (and `_meta`) table or `ml_sidecar_url` change.
 - Do not drop content when converting: every fact in the source must appear in the page.
 - Link between pages with Mintlify routes (`/api-reference/remember#anchor`), never with `.md` file names.
 - Link to repo files that are not on this site (`evals/README.md`, `CHANGELOG.md`) with GitHub URLs.

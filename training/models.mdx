@@ -3,7 +3,7 @@ title: "Model sizes"
 description: "Gemma-4 4B, 12B and 31B: base models, training backends, GPUs, LoRA settings, cost estimates and troubleshooting."
 ---
 
-`sidecar/ai_train/ai_train_core/model_config.py`, `model_train.py`
+`ml_sidecar/ai_train/ai_train_core/model_config.py`, `model_train.py`
 
 Three sizes can be trained, chosen per job with `model_size` (`4b`, `12b` or `31b`).
 
@@ -62,7 +62,7 @@ All use rank 16, alpha 16 and dropout 0 on the q/k/v/o attention projections, wi
 
 ## GPU selection
 
-The default comes from `default_gpu` in `model_config.py`: `4b` is `a10g`, `12b` is `a100` and `31b` is `a100-80gb`. `SIDECAR_GPU` overrides it for the train and generate functions of **every** size. The job's timeout is `SIDECAR_TRAIN_TIMEOUT_S` (default 7200 seconds). See [Running on Modal](/training/running#configuration).
+The default comes from `default_gpu` in `model_config.py`: `4b` is `a10g`, `12b` is `a100` and `31b` is `a100-80gb`. `ML_SIDECAR_GPU` overrides it for the train and generate functions of **every** size. The job's timeout is `ML_SIDECAR_TRAIN_TIMEOUT_S` (default 7200 seconds). See [Running on Modal](/training/running#configuration).
 
 ## Cost estimates
 
