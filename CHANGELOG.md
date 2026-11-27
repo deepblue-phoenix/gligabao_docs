@@ -4,6 +4,13 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.68.1] - 2026-12-05
+
+Documents gligabao 0.256.0 to 0.258.0 (code language detection).
+
+### Changed
+- Remember page: the language of `content_type: "code"` is detected from the code (Jev classification, or a heuristic without Jev) instead of the `filename`; the `code` info in the response; default dataset `code`; function parameters are `argument` entities with `has_argument` edges.
+
 ## [0.68.0] - 2026-12-04
 
 Documents gligabao 0.259.0 (synthetic evals).
