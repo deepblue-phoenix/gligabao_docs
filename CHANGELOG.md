@@ -4,6 +4,16 @@ All notable changes to the gligabao documentation site are documented here. The 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this site is versioned on its own with
 [Semantic Versioning](https://semver.org/) (separately from `../gligabao`).
 
+## [0.68.0] - 2026-12-04
+
+Documents gligabao 0.259.0 (synthetic evals).
+
+### Added
+- New page **Synthetic evals** (`evals/synthetic-evals`): the definition and its versions, generation (one case per call with anchoring, or bulk), regeneration and case edits, the `/v1/gb/evals/synth` API and the `gb_synth_*` tables.
+
+### Changed
+- User evals page: links to the new page, the `origin` of an eval in the list, `synth` as a reserved name, and the delete rules for synthetic evals.
+
 ## [0.67.0] - 2026-11-26
 
 Documents gligabao 0.251.0 to 0.255.0 (code extraction and the graph extractor hook).

@@ -35,7 +35,7 @@
           },
           {
             "group": "Evals",
-            "pages": ["evals/evals", "evals/user-evals", "evals/experiments", "evals/training"]
+            "pages": ["evals/evals", "evals/user-evals", "evals/synthetic-evals", "evals/experiments", "evals/training"]
           },
           {
             "group": "Training",
